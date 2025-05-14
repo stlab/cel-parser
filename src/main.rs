@@ -20,22 +20,22 @@ fn main() {
         parser.parse(input_string, &mut initial_globals);
 
     // Process the result
-    unsafe {
-        match result {
-            Some(root_node) => {
-                println!("Parsing successful!");
-                if root_node.node.is_null() {
-                    println!("Root node is null.");
-                } else {
-                    println!(
-                        "Root node x {}",
-                        d_user::<NodeStruct>(root_node.node.as_mut().unwrap()).x
-                    );
-                }
+
+    match result {
+        Some(root_node) => {
+            println!("Parsing successful!");
+            if root_node.node.is_null() {
+                println!("Root node is null.");
+            } else {
+                let root = unsafe { root_node.node.as_mut() };
+                println!(
+                    "Root node x {}",
+                    d_user::<NodeStruct>(root.unwrap()).x
+                );
             }
-            None => {
-                eprintln!("Parsing failed.");
-            }
+        }
+        None => {
+            eprintln!("Parsing failed.");
         }
     }
 }
