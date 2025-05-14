@@ -1,0 +1,13 @@
+[package]
+name = "rsdparsing"
+version = "0.1.0"
+edition = "2024"
+
+build = "build.rs"
+
+[dependencies]
+dparser_lib = { git = "https://github.com/dabrahams/dparser", branch = "be-a-crate" }
+
+[build-dependencies]
+dparser_lib = { git = "https://github.com/dabrahams/dparser", branch = "be-a-crate" }
+cc = "1.0"
