@@ -1,20 +1,7 @@
 {
-// use dparser_lib;
-
-#[derive(Debug, Default)]
-pub struct GlobalsStruct {
-  a: i32,
-  b: i32,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct NodeStruct {
-  x: i32,
-  y: i32,
-}
-
-pub const INDEX_OF_A:u32 = ${nterm A};
-
+//    mod crate::parse_support;
+    use crate::parse_support::{*};
+    pub const INDEX_OF_A:u32 = ${nterm A};
 }
 
 start: S T {

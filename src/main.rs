@@ -1,4 +1,5 @@
 use dparser_lib::{D_ParserTables, ParseNodeWrapper, Parser};
+pub mod parse_support;
 
 include!(concat!(env!("OUT_DIR"), "/actions.rs"));
 
