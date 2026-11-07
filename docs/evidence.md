@@ -1,14 +1,14 @@
 # Source evidence and parser handoff
 
-This reference records the token-boundary milestone's source and dependency
-contracts. It doesn't claim expression-parser or runtime-port completion.
+This reference records the token-boundary source contracts and the lookup/type
+milestone's dependencies. It doesn't claim expression-parser completion.
 
 ## Source revisions
 
 The Rust source revision is `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
 Accepted sibling runtime packaging is at
-`b3927a994366d65fee8d3366ededee7892ba923a`. No runtime implementation is copied
-or linked in this lexer-only milestone.
+`cf778609c4659ade809a9c643ca7705c8dbcbc35`. The parser consumes its public installed
+package; it neither copies runtime implementation nor includes private headers.
 
 The delivered Rust evidence establishes these contracts:
 
@@ -70,8 +70,9 @@ All numeric traversal is linear and uses no locale-dependent conversion.
 
 ## Dependencies and licenses
 
-Production code depends only on the C++20 standard library and committed Unicode
-property data. There is no runtime or Unicode shared-library dependency.
+Production code depends on the C++20 standard library, committed Unicode
+property data, and the installed `cel-runtime` package through `cel::runtime`.
+There is no Unicode shared-library dependency.
 
 Build infrastructure uses `stlab/cpp-library` at
 `b0b096964a93561c7dd1586fa7b0efdf5f077aab` under BSL-1.0. Its pinned scaffold
@@ -106,10 +107,10 @@ Python or network access to use the committed tables.
 
 ## Remaining parser milestones
 
-Operation lookup and expression/type productions are outside this milestone.
-The next lookup milestone must consume the accepted runtime's installed
-`cel-runtime` package and exported `cel::runtime` target through ordinary CMake
-dependency tracking, never absolute sibling paths.
+Owned operation lookup, complete recursive type parsing, and retained bool/f64
+emitters are implemented. See the [built-in census](builtin-census.md) for the
+source-bound disposition and tests for each family. Expression productions and
+differential parity remain separate milestones.
 
 The expression parser must consume only `current()` and `advance()`. It must
 retain strict Wirth-style LL(1) separator laws, use exact numeric spellings for

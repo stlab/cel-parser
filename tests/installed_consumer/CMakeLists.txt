@@ -16,5 +16,11 @@ else()
     target_compile_options(consumer PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 add_test(NAME consumer COMMAND consumer)
+add_executable(lookup_consumer lookup.cpp)
+target_link_libraries(lookup_consumer PRIVATE cel::parser)
+set_target_properties(lookup_consumer PROPERTIES CXX_EXTENSIONS OFF)
+add_test(NAME lookup_consumer COMMAND lookup_consumer)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/imported-parser-$<CONFIG>.txt"
     CONTENT "library=$<TARGET_FILE:cel::parser>\nheaders=$<TARGET_PROPERTY:cel::parser,INTERFACE_INCLUDE_DIRECTORIES>\n")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/imported-runtime-$<CONFIG>.txt"
+    CONTENT "library=$<TARGET_FILE:cel::runtime>\nheaders=$<TARGET_PROPERTY:cel::runtime,INTERFACE_INCLUDE_DIRECTORIES>\n")

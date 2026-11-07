@@ -3,6 +3,7 @@
 set(prefix "@CMAKE_CURRENT_BINARY_DIR@/installed-check/prefix")
 set(consumer_build "@CMAKE_CURRENT_BINARY_DIR@/installed-check/consumer")
 file(REMOVE_RECURSE "${prefix}" "${consumer_build}")
+file(COPY "@CEL_PARSER_RUNTIME_PREFIX@/" DESTINATION "${prefix}")
 execute_process(COMMAND "@CMAKE_COMMAND@" --install "@CMAKE_CURRENT_BINARY_DIR@"
     --config "${CONFIG}" --prefix "${prefix}" COMMAND_ERROR_IS_FATAL ANY)
 foreach(notice LICENSE Unicode-3.0.txt)
@@ -29,12 +30,14 @@ execute_process(COMMAND "@CMAKE_COMMAND@"
     "-DCMAKE_CXX_CLANG_TIDY=@CMAKE_CXX_CLANG_TIDY@"
     -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
     COMMAND_ERROR_IS_FATAL ANY)
-file(READ "${consumer_build}/imported-parser-${CONFIG}.txt" imported_paths)
-foreach(boundary library headers)
-    string(FIND "${imported_paths}" "${boundary}=${prefix}/" installed_path)
-    if(installed_path EQUAL -1)
-        message(FATAL_ERROR "Consumer ${boundary} does not resolve to the installation")
-    endif()
+foreach(package parser runtime)
+    file(READ "${consumer_build}/imported-${package}-${CONFIG}.txt" imported_paths)
+    foreach(boundary library headers)
+        string(FIND "${imported_paths}" "${boundary}=${prefix}/" installed_path)
+        if(installed_path EQUAL -1)
+            message(FATAL_ERROR "Consumer ${package} ${boundary} does not resolve to the installation")
+        endif()
+    endforeach()
 endforeach()
 execute_process(COMMAND "@CMAKE_COMMAND@" --build "${consumer_build}" --config "${CONFIG}"
     COMMAND_ERROR_IS_FATAL ANY)

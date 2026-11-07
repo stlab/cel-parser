@@ -31,6 +31,8 @@ struct source_span {
 enum class error_category {
     malformed_input,     ///< Invalid UTF-8, spelling, comment, or input character.
     unsupported_literal, ///< A literal or suffix outside bool/binary64 scope.
+    type_error,          ///< An unknown, unsupported, or ineligible complete type.
+    lookup_error,        ///< An undefined name or unmatched operation signature.
     delimiter_error,     ///< An unmatched, mismatched, or unclosed delimiter.
     resource_limit       ///< A producer's explicitly documented resource limit.
 };
@@ -199,5 +201,7 @@ public:
 };
 
 } // namespace cel
+
+#include <cel/parser/lookup.hpp>
 
 #endif // CEL_PARSER_HPP
