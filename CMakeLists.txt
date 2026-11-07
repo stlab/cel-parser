@@ -2,16 +2,17 @@ cmake_minimum_required(VERSION 3.24)
 
 include(cmake/CPM.cmake)
 
-# Fetch cpp-library before project()
-# Check https://github.com/stlab/cpp-library/releases for the latest version
-CPMAddPackage("gh:stlab/cpp-library@5.7.0")
+set(CPP_LIBRARY_VERSION "0.0.0" CACHE STRING "CEL parser package version")
+CPMAddPackage("gh:stlab/cpp-library#b0b096964a93561c7dd1586fa7b0efdf5f077aab")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
 cpp_library_enable_dependency_tracking()
 
 # Now declare project
-project(parser)
+project(parser LANGUAGES CXX)
+set(CMAKE_CXX_EXTENSIONS OFF)
+include(GNUInstallDirs)
 
 # Enable CTest infrastructure (required for tests/examples to work)
 include(CTest)
@@ -20,8 +21,23 @@ include(CTest)
 cpp_library_setup(
     DESCRIPTION "Decoded CEL text tokens and source diagnostics"
     NAMESPACE cel
+    REQUIRES_CPP_VERSION 20
     HEADERS parser.hpp
     SOURCES parser.cpp
     EXAMPLES example.cpp
-    TESTS tests.cpp
+    TESTS tests.cpp cursor_copy_fail.cpp lexer_copy_fail.cpp
+    DOCS_INPUTS README.md docs/lexical-contract.md docs/evidence.md
+    DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+        "FULL_PATH_NAMES = NO"
+        "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"
+        "STRIP_FROM_INC_PATH = ${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
+install(FILES LICENSE licenses/Unicode-3.0.txt
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/cel-parser")
+if(BUILD_TESTING)
+    configure_file(tests/installed_consumer.cmake.in installed_consumer.cmake @ONLY)
+    add_test(NAME installed_consumer
+        COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
+            -P "${CMAKE_CURRENT_BINARY_DIR}/installed_consumer.cmake")
+    set_tests_properties(installed_consumer tests PROPERTIES TIMEOUT 180)
+endif()

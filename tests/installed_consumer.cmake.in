@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: BSL-1.0
+# Installs and validates a standalone consumer without source include directories.
+set(prefix "@CMAKE_CURRENT_BINARY_DIR@/installed-check/prefix")
+set(consumer_build "@CMAKE_CURRENT_BINARY_DIR@/installed-check/consumer")
+file(REMOVE_RECURSE "${prefix}" "${consumer_build}")
+execute_process(COMMAND "@CMAKE_COMMAND@" --install "@CMAKE_CURRENT_BINARY_DIR@"
+    --config "${CONFIG}" --prefix "${prefix}" COMMAND_ERROR_IS_FATAL ANY)
+foreach(notice LICENSE Unicode-3.0.txt)
+    if(NOT EXISTS "${prefix}/@CMAKE_INSTALL_DATADIR@/licenses/cel-parser/${notice}")
+        message(FATAL_ERROR "Installed package omits license notice ${notice}")
+    endif()
+endforeach()
+file(GLOB_RECURSE package_configs "${prefix}/*.cmake")
+get_filename_component(repository_parent "@CMAKE_CURRENT_SOURCE_DIR@" DIRECTORY)
+foreach(config_file IN LISTS package_configs)
+    file(READ "${config_file}" contents)
+    string(FIND "${contents}" "${repository_parent}" leaked_path)
+    if(NOT leaked_path EQUAL -1)
+        message(FATAL_ERROR "Installed configuration leaks a repository path: ${config_file}")
+    endif()
+endforeach()
+execute_process(COMMAND "@CMAKE_COMMAND@"
+    -S "@CMAKE_CURRENT_SOURCE_DIR@/tests/installed_consumer" -B "${consumer_build}"
+    -G "@CMAKE_GENERATOR@" "-DCMAKE_BUILD_TYPE=${CONFIG}"
+    "-DCMAKE_PREFIX_PATH=${prefix}"
+    "-DCMAKE_CXX_COMPILER=@CMAKE_CXX_COMPILER@"
+    "-DCMAKE_CXX_FLAGS=@CMAKE_CXX_FLAGS@"
+    "-DCMAKE_EXE_LINKER_FLAGS=@CMAKE_EXE_LINKER_FLAGS@"
+    "-DCMAKE_CXX_CLANG_TIDY=@CMAKE_CXX_CLANG_TIDY@"
+    -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
+    COMMAND_ERROR_IS_FATAL ANY)
+file(READ "${consumer_build}/imported-parser-${CONFIG}.txt" imported_paths)
+foreach(boundary library headers)
+    string(FIND "${imported_paths}" "${boundary}=${prefix}/" installed_path)
+    if(installed_path EQUAL -1)
+        message(FATAL_ERROR "Consumer ${boundary} does not resolve to the installation")
+    endif()
+endforeach()
+execute_process(COMMAND "@CMAKE_COMMAND@" --build "${consumer_build}" --config "${CONFIG}"
+    COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND "@CMAKE_CTEST_COMMAND@" --test-dir "${consumer_build}"
+    -C "${CONFIG}" --output-on-failure COMMAND_ERROR_IS_FATAL ANY)
