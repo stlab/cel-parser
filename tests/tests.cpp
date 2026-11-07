@@ -2,9 +2,12 @@
 
 #include <cel/parser.hpp>
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -85,6 +88,31 @@ TEST_CASE("binary64 boundary conversion preserves Rust infinity and zero results
     REQUIRE(extremes.size() == 3);
     CHECK(std::isinf(std::get<cel::numeric_literal>(extremes[0].value).value));
     CHECK(std::get<cel::numeric_literal>(extremes[1].value).value == 0);
+}
+
+TEST_CASE("radix integers round ties without narrowing and retain exact spelling") {
+    constexpr std::array<std::pair<std::string_view, double>, 10> cases{{
+        {"0b100000000000000000000000000000000000000000000000000001", 9007199254740992.0},
+        {"0o400000000000000001", 9007199254740992.0},
+        {"0x20000000000001", 9007199254740992.0},
+        {"0b100000000000000000000000000000000000000000000000000011", 9007199254740996.0},
+        {"0o400000000000000003", 9007199254740996.0},
+        {"0x20000000000003", 9007199254740996.0},
+        {"0b100000000000000000000000000000000000000000000000000000000000000000000000000000001",
+         0x1p80},
+        {"0o400000000000000000000000001", 0x1p80},
+        {"0x100000000000000000001", 0x1p80},
+        {"0o12_345", 5349.0},
+    }};
+    for (auto [text, expected] : cases) {
+        INFO(text);
+        const auto tokens = collect(text);
+        REQUIRE(tokens.size() == 2);
+        REQUIRE(std::holds_alternative<cel::numeric_literal>(tokens[0].value));
+        const auto& number = std::get<cel::numeric_literal>(tokens[0].value);
+        CHECK(number.value == expected);
+        CHECK(number.spelling == text);
+    }
 }
 
 TEST_CASE("joint compounds use maximal supported matching and full byte spans") {
