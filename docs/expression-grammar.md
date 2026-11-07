@@ -121,8 +121,9 @@ Temporary nesting is bounded; code/captures, flat unary prefixes, and field/list
 metadata use storage proportional to their actual input.
 
 Source diagnostics preserve producer categories/messages/spans. Member lookup
-errors identify the member name. Structural validation identifies its expression
-interval, and annotation-category mismatches identify the leading type token.
+errors identify the member name. Malformed raw tuple selectors identify their
+selector token. Structural validation identifies the complete expression interval,
+and non-array annotation errors identify the complete parsed type interval.
 The public span-output `parse_type` overloads provide exact consumed intervals,
 excluding following whitespace/host tokens. Selected client-emitter failures
 are not caught by structural diagnostic translation. Evaluation uses frozen

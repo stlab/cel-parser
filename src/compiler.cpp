@@ -324,8 +324,9 @@ class expression_compiler {
     }
     /// selector = unsuffixed_integer | unsuffixed_dotted_decimal.
     /// Decimal token spelling may supply two tuple selectors; exponent digits cannot parse.
+    /// Malformed selectors identify their token; structural failures identify the full postfix.
     /// Complexity: O(spelling bytes + structural metadata work), O(normalized spelling) storage.
-    void tuple_selector(dyn_segment& builder) {
+    void tuple_selector(dyn_segment& builder, source_span postfix_start) {
         const auto start = current().span;
         const auto* number = std::get_if<numeric_literal>(&current().value);
         if (!number)
@@ -360,7 +361,7 @@ class expression_compiler {
             count = 2;
         }
         advance();
-        structural(start, [&] {
+        structural(span_from(postfix_start), [&] {
             for (std::size_t i = 0; i != count; ++i)
                 builder.project_tuple(indices[i]);
         });
@@ -385,7 +386,7 @@ class expression_compiler {
                     lookup_.apply(name, builder, increment(count), name_span,
                                   lookup_selector::member);
                 } else {
-                    tuple_selector(builder);
+                    tuple_selector(builder, start);
                 }
             } else if (opening(delimiter::bracket)) {
                 advance();
@@ -480,11 +481,10 @@ class expression_compiler {
         }
         expect_group(delimiter::bracket, false);
         std::optional<value_type> declared;
-        source_span type_span = start;
         if (punctuation_is(":")) {
             advance();
-            type_span = current().span;
             declared = annotation();
+            const auto type_span = last_;
             if (declared->kind() != type_kind::array)
                 throw parse_error(error_category::type_error, type_span,
                                   "array annotations must name a complete array type");
@@ -496,7 +496,7 @@ class expression_compiler {
             auto element = count == 0 ? bind_runtime_ownership(declared->element()) :
                                         builder.operand_types(count).front();
             if (declared && !declared->element().same_shape(element))
-                throw parse_error(error_category::type_error, type_span,
+                throw parse_error(error_category::type_error, span_from(start),
                                   "array annotation element mismatch");
             builder.make_array(count, std::move(element), ambient);
         });

@@ -110,6 +110,12 @@ TEST_CASE("tuple group unit array annotations and strict separators") {
         CAPTURE(text);
         CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
     }
+    error_at(parser, "[]:(f64)", cel::error_category::type_error, {3, 8});
+    error_at(parser, "[]:((f64,[bool]))   ", cel::error_category::type_error, {3, 17});
+    error_at(parser, "[true]:[f64]", cel::error_category::type_error, {0, 12});
+    error_at(parser, "[true]:([f64])   ", cel::error_category::type_error, {0, 14});
+    error_at(parser, "[[]:[bool]]:([[f64]])   ", cel::error_category::type_error, {0, 21});
+    error_at(parser, "[1,true]:([f64])   ", cel::error_category::type_error, {0, 16});
 }
 
 TEST_CASE("tuple selectors use retained raw digits rather than double conversion") {
@@ -124,6 +130,11 @@ TEST_CASE("tuple selectors use retained raw digits rather than double conversion
         CAPTURE(text);
         CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
     }
+    error_at(parser, "(true).0", cel::error_category::type_error, {0, 8});
+    error_at(parser, "(1,).2", cel::error_category::type_error, {0, 6});
+    error_at(parser, "((1,),).0.2", cel::error_category::type_error, {0, 11});
+    error_at(parser, "(1,).0f64", cel::error_category::malformed_input, {5, 9});
+    error_at(parser, "(1,).0e0", cel::error_category::malformed_input, {5, 8});
 }
 
 TEST_CASE("explicit C++ array indexing validates before structural access") {
@@ -400,6 +411,22 @@ TEST_CASE(
     error_at(parser, "(1]", cel::error_category::delimiter_error, {2, 3});
     error_at(parser, "missing", cel::error_category::lookup_error, {0, 7});
     error_at(parser, "[1,true]:[f64]   ", cel::error_category::type_error, {0, 14});
+    for (const auto& [text, expected] :
+         std::array{std::pair{"[]:(f64)   , host", cel::source_span{3, 8}},
+                    std::pair{"[true]:([f64])   , host", cel::source_span{0, 14}},
+                    std::pair{"[[]:[bool]]:([[f64]])   , host", cel::source_span{0, 21}}}) {
+        CAPTURE(std::string_view(text));
+        const auto annotated = tokens(text);
+        cel::token_cursor prefix(annotated);
+        try {
+            (void)parser.parse_expression(prefix);
+            FAIL("invalid annotation accepted");
+        } catch (const cel::parse_error& error) {
+            CHECK(error.category() == cel::error_category::type_error);
+            CHECK(error.span() == expected);
+        }
+        CHECK(std::get<cel::punctuation>(prefix.current().value).spelling() == ",");
+    }
     auto invalid = std::array{cel::token{
         {20, 21},
         cel::parse_error(cel::error_category::unsupported_literal, {20, 21}, "producer")}};
