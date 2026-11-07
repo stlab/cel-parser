@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "driver_support.hpp"
 #include <bit>
 #include <cel/parser.hpp>
 #include <cmath>
@@ -6,7 +7,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace {
+namespace cel::parity {
 /// Identifies each ordinary named function's first marker.
 struct tap_marker {};
 struct hit_marker {};     ///< Identifies a traced boolean function.
@@ -17,11 +18,6 @@ struct second_marker {};  ///< Exercises rejection of a secondary marker.
 /// Stores one admitted trivially copyable client value for cross-language fixtures.
 struct client_leaf {
     double number; ///< Stores one independently copied trivial client value.
-};
-/// Identifies a deliberate selected callback failure.
-struct callback_error : std::runtime_error {
-    /// Constructs the distinct client-owned selected-failure error.
-    callback_error() : std::runtime_error("selected callback") {}
 };
 /// Produces exact binary64 bits, normalizing only unspecified NaN payloads.
 std::string bits(double number) {
@@ -146,6 +142,31 @@ cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace) {
                 b.just(cel::value::from(name == "ambient" ? 3.0 : number));
                 return true;
             });
+    if (setup == "unstable_trace_first" || setup == "unstable_trace_second") {
+        result.push_scope(
+            [setup, &trace, calls = std::make_shared<int>(0)](
+                std::string_view name, cel::dyn_segment& b, std::size_t arity, cel::source_span) {
+                if (name != "traceprobe" || arity != 0) return false;
+                b.op0<double>([setup, &trace, calls] {
+                    const auto call = (*calls)++;
+                    trace.push_back(call == (setup == "unstable_trace_first" ? 0 : 1) ? 2.0 : 1.0);
+                    return 1.0;
+                });
+                return true;
+            });
+    }
+    result.push_scope(
+        [](std::string_view name, cel::dyn_segment& b, std::size_t arity, cel::source_span) {
+            if (arity != 0) return false;
+            if (name == "unexpected_argument") {
+                b.op0<double>([]() -> double { throw std::invalid_argument("unrelated failure"); });
+            } else if (name == "unexpected_range") {
+                b.op0<double>([]() -> double { throw std::out_of_range("unrelated failure"); });
+            } else {
+                return false;
+            }
+            return true;
+        });
     if (setup == "custom") {
         result.register_op<double, double, double>("|", [](double a, double b) { return a + b; });
         result.register_op<double, double, double>("^", [](double a, double b) { return a - b; });
@@ -161,11 +182,14 @@ cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace) {
     }
     return result;
 }
-/// Borrows one decoded expression and its explicit registration selection.
-struct request {
-    std::string_view setup;  ///< Selects explicitly configured public registrations.
-    std::string_view source; ///< Borrows one decoded expression for compilation.
-};
+/// Serializes an execution trace with the same explicit IEEE normalization as values.
+/// Complexity: O(trace length) time and response space.
+std::string trace_text(const std::vector<double>& trace) {
+    std::string result;
+    for (const auto number : trace)
+        result += (result.empty() ? "" : ",") + bits(number);
+    return result;
+}
 /// Executes one configured request after destroying its compiler.
 /// Complexity: O(compilation + three executions + serialization).
 void run(request input) {
@@ -182,32 +206,17 @@ void run(request input) {
         const auto needed = program.requirements().for_prefix(stack.cursor(), stack.depth());
         stack.reserve(needed.bytes.size, needed.bytes.alignment);
         stack.reserve_depth(needed.slots);
-        std::string response;
-        try {
-            for (int repeat = 0; repeat != 3; ++repeat) {
-                trace.clear();
-                const auto object = program.execute(stack, {});
-                const auto next = "ok\t" + type(object.type()) + "\t" + value(object);
-                if (repeat && response != next) throw std::logic_error("cached result changed");
-                response = next;
+        const auto response = evaluate_cached(
+            setup, trace, [&] { return program.execute(stack, {}); },
+            [](const cel::value& object) {
+                return "ok\t" + type(object.type()) + "\t" + value(object);
+            },
+            [&] {
                 if (stack.depth() != 1) throw std::logic_error("caller prefix lost");
-            }
-        } catch (const callback_error&) {
-            response = "runtime\tcallback";
-        } catch (const std::invalid_argument&) {
-            // Only explicitly selected clamp fixtures admit this public runtime exception.
-            if (setup != "clamp_error") throw;
-            response = "runtime\tclamp";
-        } catch (const std::out_of_range&) {
-            if (setup != "index_error") throw;
-            response = "runtime\tindex";
-        }
+            });
         if (stack.depth() != 1 || !stack.pop<bool>())
             throw std::logic_error("caller prefix cleanup failed");
-        std::cout << response << '\t';
-        for (std::size_t i = 0; i != trace.size(); ++i)
-            std::cout << (i ? "," : "") << bits(trace[i]);
-        std::cout << '\n';
+        std::cout << response << '\n';
     } catch (const cel::parse_error& error) {
         constexpr std::array names{"malformed_input", "unsupported_literal", "type_error",
                                    "lookup_error",    "delimiter_error",     "resource_limit"};
@@ -215,18 +224,21 @@ void run(request input) {
                   << names.at(static_cast<std::size_t>(error.category())) << '\n';
     }
 }
-} // namespace
+} // namespace cel::parity
 
+#ifndef CEL_PARITY_NO_MAIN
 /// Reads a tab-delimited test protocol; transport decoding stays outside both product libraries.
 int main() try {
     std::string line;
     while (std::getline(std::cin, line)) {
         const auto tab = line.find('\t');
         if (tab == std::string::npos) throw std::invalid_argument("fixture request missing setup");
-        run({std::string_view(line).substr(0, tab), std::string_view(line).substr(tab + 1)});
+        cel::parity::run(
+            {std::string_view(line).substr(0, tab), std::string_view(line).substr(tab + 1)});
     }
     return 0;
 } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
 }
+#endif

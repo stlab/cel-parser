@@ -8,8 +8,26 @@ if not __debug__:
     raise RuntimeError("The parity gate requires Python assertion checking")
 
 
+def validate_response(row, response):
+    """Requires a complete recognized phase with nonempty discriminators; traces may be empty."""
+    lengths = {"ok": 4, "parse": 4, "runtime": 3}
+    assert response and response[0] in lengths, (row["id"], "unknown phase", response)
+    phase = response[0]
+    assert len(response) == lengths[phase], (row["id"], "incomplete record", response)
+    required = response if phase == "parse" else response[:-1]
+    assert all(isinstance(field, str) and field for field in required), (
+        row["id"], "empty discriminator", response)
+    assert isinstance(response[-1], str), (row["id"], "invalid field", response)
+    if phase == "parse":
+        assert all(span.isdecimal() for span in response[1:3]), (
+            row["id"], "invalid span", response)
+        assert int(response[1]) <= int(response[2]), (row["id"], "reversed span", response)
+
+
 def compare(row, cpp, rust):
     """Rejects differing types, bits, structures, traces, or normalized error intervals."""
+    validate_response(row, cpp)
+    validate_response(row, rust)
     if cpp[0] == rust[0] == "parse":
         assert "category" in row, (row["id"], "unexpected parse failure", cpp, rust)
         assert len(cpp) == len(rust) == 4, (row["id"], cpp, rust)
@@ -71,6 +89,7 @@ def main():
     for row, left in zip(rows, cpp):
         try:
             if row.get("cpp_only"):
+                validate_response(row, left)
                 assert left == row["expected_cpp"], (row["id"], left, row)
             else:
                 compare(row, left, rust[row["id"]])

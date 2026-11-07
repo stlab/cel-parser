@@ -37,6 +37,33 @@ class ComparisonTests(unittest.TestCase):
             compare({"id": "min", "zero_choice": True}, positive,
                     ["ok", "D", "3ff0000000000000", ""])
 
+    def test_incomplete_and_malformed_records_are_rejected_before_equality(self):
+        """Rejects equal incomplete records, including the reviewed corpus witnesses."""
+        for row, record in [
+            ({"id": "structural-65"}, ["ok"]),
+            ({"id": "selected-exceptions-114", "status": "runtime"}, ["runtime", "callback"]),
+            ({"id": "empty"}, []),
+            ({"id": "unknown", "status": "other"}, ["other", "D", "value", ""]),
+            ({"id": "empty-type"}, ["ok", "", "value", ""]),
+            ({"id": "empty-value"}, ["ok", "D", "", ""]),
+            ({"id": "empty-error", "status": "runtime"}, ["runtime", "", ""]),
+            ({"id": "excess"}, ["ok", "D", "value", "", "extra"]),
+            ({"id": "parse", "category": "type_error"}, ["parse", "", "1", "type_error"]),
+            ({"id": "parse", "category": "type_error"}, ["parse", "x", "1", "type_error"]),
+            ({"id": "parse", "category": "type_error"}, ["parse", "2", "1", "type_error"]),
+            ({"id": "adapted", "zero_choice": True}, ["ok", "D"]),
+        ]:
+            with self.subTest(record=record):
+                with self.assertRaises(AssertionError):
+                    compare(row, record, record)
+
+    def test_empty_traces_remain_valid(self):
+        """Accepts a complete success or execution error with no side effects."""
+        compare({"id": "success"}, ["ok", "D", "0000000000000000", ""],
+                ["ok", "D", "0000000000000000", ""])
+        compare({"id": "error", "status": "runtime"}, ["runtime", "callback", ""],
+                ["runtime", "callback", ""])
+
 
 if __name__ == "__main__":
     unittest.main()

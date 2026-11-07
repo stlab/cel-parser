@@ -44,7 +44,10 @@ their public lexer/client contracts cover whitespace and multiline text.
 `fixtures.py` maintains decoded expressions and independently specified scalar
 expectations. Both drivers compile before executing callbacks, destroy the
 parser, execute successful fixtures three times, and compare complete semantic
-types, structural values, ordered effects, and exact binary64 bits. Traced
+types, structural values, ordered effects, and exact binary64 bits.
+Each successful execution's normalized trace is compared with the first,
+alongside its type and value; a stable final trace cannot conceal changed
+earlier effects. Traced
 callback arguments also retain full f64 bits without narrowing to integers. NaN
 payloads are unspecified and normalize to `nan`. Only explicitly marked
 `min`/`max` equal-zero fixtures admit either zero sign. Callable values compare
@@ -80,11 +83,19 @@ are field-name-local; unknown constructors and incomplete records cover the
 record expression. The harness rejects unexpected parse failures, changed
 traces/types/results, unknown adapters, missing drivers, and optimized Python
 execution that would disable assertion checks.
+Before equality or per-row adaptations, it requires complete recognized
+response phases: four fields for success/parse errors and three for runtime
+errors, with nonempty discriminators and valid parse intervals. Empty traces
+remain valid.
 
 Client callback failure normalization uses a distinct Rust error type and
 the matching C++ exception type. Rust's standard clamp emitter returns an
 untyped `anyhow` error; only explicitly selected clamp fixtures with its exact
 source-defined `"invalid clamp bounds"` error normalize to `runtime/clamp`.
+C++ requires the same clamp witness and recognizes only the selected indexing
+witnesses `"invalid floating array index"` and `"array index out of bounds"`.
+Only execution enters this normalization boundary; serialization and prefix
+checks propagate their exceptions.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
@@ -96,6 +107,9 @@ and verifies both imported libraries and headers resolve to that prefix.
 Five package-only clients cover tokens, lookup, compiled composites/callables,
 the decoded scalar cache, and execution measurements. They link only
 `cel::parser`; `find_dependency` finds the runtime transitively.
+After an executable-ownership correction, rebuild against its newly installed
+runtime package. Sanitized parser/client checks require the corresponding
+instrumented runtime package, not an older accepted installation.
 
 To repeat with packages you installed yourself:
 

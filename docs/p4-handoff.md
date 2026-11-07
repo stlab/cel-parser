@@ -42,9 +42,12 @@ regressions. It also corrected Rust malformed tuple selector conversion spans
 at `1516e45f0799927043352ffeeb2b13d58ac66526`; it did not normalize the defect
 away. See [validation](validation.md) for exact adapters and driver contracts.
 
-The accepted runtime prerequisite remains
-`bf2d2ac9fe420139b85d1adec9d57c1565356e32`. P4 changes runtime documentation,
-not production architecture. Ordinary named scalar calls currently allocate
+P4 used runtime prerequisite
+`bf2d2ac9fe420139b85d1adec9d57c1565356e32` and changed only its documentation.
+The final integrated wave subsequently corrects executable retirement and
+higher-order result ownership. Validation must consume the corrected normal
+and instrumented runtime installations; the session's `final-fix-wave-report.md`
+identifies their revisions and inputs. Ordinary named scalar calls allocate
 owning marker/result intermediates; direct scalar dispatch measurements remain
 separate. Native owning composites and dynamic invocation retain their costs.
 
@@ -81,3 +84,13 @@ checks, and the bounded measurement-target analyzer exclusion. Missing source,
 disabled tests, absent drivers/Cargo, and disabled Python assertions all fail
 explicitly in local negative checks. Generated and manual remote workflows
 remain unexecuted; GCC/MSVC and macOS LSan remain unavailable.
+
+## Final integrated corrections
+
+The oracle now checks every successful cached trace, restricts execution-error
+normalization to selected source witnesses, and validates complete response
+schemas before comparison or adaptations. `parity_driver_test.cpp`, Rust
+reference tests, and comparator negatives cover previously hidden failures.
+This wave adds one parser CTest and two Rust driver tests; the historical P4
+measurements and evidence remain unchanged. Correction-scoped approval remains
+the controller's responsibility.

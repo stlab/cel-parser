@@ -484,9 +484,54 @@ fn lookup(setup: &str, trace: &Arc<Mutex<Vec<f64>>>) -> Result<OpLookup> {
             Box::new(|s, _| s.op2(|a: f64, b: f64| a - b)),
         )?;
     }
+    if setup == "unstable_trace_first" || setup == "unstable_trace_second" {
+        let first = setup == "unstable_trace_first";
+        let calls = Arc::new(Mutex::new(0usize));
+        let trace = Arc::clone(trace);
+        result.push_scope(move |name, segment, arity, _| {
+            if name != "traceprobe" || arity != 0 {
+                return Ok(false);
+            }
+            let calls = Arc::clone(&calls);
+            let trace = Arc::clone(&trace);
+            segment.op0(move || {
+                let mut call = calls.lock().unwrap();
+                trace
+                    .lock()
+                    .unwrap()
+                    .push(if *call == if first { 0 } else { 1 } {
+                        2.0
+                    } else {
+                        1.0
+                    });
+                *call += 1;
+                1.0f64
+            });
+            Ok(true)
+        });
+    }
     Ok(result)
 }
+/// Serializes a borrowed trace with the same explicit IEEE normalization as values.
+///
+/// - Complexity: O(trace length) time and response space.
+fn trace_text(trace: &[f64]) -> String {
+    let mut result = String::new();
+    for n in trace {
+        if !result.is_empty() {
+            result.push(',');
+        }
+        result.push_str(&bits(*n));
+    }
+    result
+}
 /// Evaluates each cached fixture three times after parser destruction.
+///
+/// Every successful execution preserves its normalized type, value, and trace.
+///
+/// # Errors
+///
+/// Returns unrelated execution errors, observation errors, or changed cached observations.
 ///
 /// - Complexity: O(compilation, three evaluations, and serialization).
 fn run(setup: &str, source: &str) -> Result<()> {
@@ -552,8 +597,16 @@ fn run(setup: &str, source: &str) -> Result<()> {
         trace.lock().unwrap().clear();
         match program.call_dyn_value(&[]) {
             Ok(owner) => {
-                let next = format!("ok\t{}\t{}", type_name(owner.value_type())?, value(owner)?);
-                anyhow::ensure!(repeat == 0 || response == next, "cached result changed");
+                let next = format!(
+                    "ok\t{}\t{}\t{}",
+                    type_name(owner.value_type())?,
+                    value(owner)?,
+                    trace_text(&trace.lock().unwrap()),
+                );
+                anyhow::ensure!(
+                    repeat == 0 || response == next,
+                    "cached result or trace changed"
+                );
                 response = next;
             }
             Err(error) => {
@@ -564,19 +617,13 @@ fn run(setup: &str, source: &str) -> Result<()> {
                 } else {
                     return Err(error);
                 }
+                response.push('\t');
+                response.push_str(&trace_text(&trace.lock().unwrap()));
                 break;
             }
         }
     }
-    let log = trace.lock().unwrap();
-    print!("{response}\t");
-    for (i, n) in log.iter().enumerate() {
-        if i != 0 {
-            print!(",")
-        }
-        print!("{}", bits(*n))
-    }
-    println!();
+    println!("{response}");
     Ok(())
 }
 /// Runs a fail-closed line protocol using standard I/O, separate from product execution.
@@ -595,6 +642,17 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     use cel_runtime::IntoCStackList;
+    /// Rejects a stable result whose first successful execution changes its trace.
+    #[test]
+    fn cached_execution_checks_every_trace() {
+        assert!(run("unstable_trace_first", "traceprobe").is_err());
+        assert!(run("std", "tap(1f64)").is_ok());
+    }
+    /// Rejects a stable result whose second successful execution changes its trace.
+    #[test]
+    fn cached_execution_checks_second_trace() {
+        assert!(run("unstable_trace_second", "traceprobe").is_err());
+    }
     /// Preserves signed zero and finite bits and normalizes unspecified NaN payloads.
     #[test]
     fn scalar_observation_preserves_ieee_contracts() {
