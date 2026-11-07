@@ -9,10 +9,17 @@ template <class Cursor>
 class type_parser {
     Cursor& cursor_;
     const op_lookup& lookup_;
+    source_span last_{};
     /// Returns a current diagnostic-free token; producer errors retain their original message/span.
     const token& current() const {
         if (const auto* error = std::get_if<parse_error>(&cursor_.current().value)) throw *error;
         return cursor_.current();
+    }
+    /// Consumes a token and retains its exact span for the successful prefix boundary.
+    /// Complexity: O(advanced lexer work), or O(1) for external tokens.
+    void advance() {
+        last_ = current().span;
+        cursor_.advance();
     }
     /// Checks the current punctuation without consuming or looking ahead.
     bool punctuation_is(std::string_view spelling) const {
@@ -32,7 +39,7 @@ class type_parser {
             throw parse_error(error_category::delimiter_error, current().span,
                               "expected closing delimiter");
         const auto end = current().span.end;
-        cursor_.advance();
+        advance();
         return end;
     }
     /// Resolves zero/one-argument range constructors without adapting endpoint types.
@@ -66,15 +73,15 @@ class type_parser {
             const auto start = current().span.begin;
             auto end = current().span.end;
             const auto name = identifier_token->spelling;
-            cursor_.advance();
+            advance();
             std::vector<value_type> args;
             const auto* opening = std::get_if<open_delimiter>(&current().value);
             if (opening && opening->kind == delimiter::parenthesis) {
-                cursor_.advance();
+                advance();
                 if (!closing(delimiter::parenthesis)) {
                     args.push_back(production(depth + 1));
                     while (punctuation_is(",")) {
-                        cursor_.advance();
+                        advance();
                         args.push_back(production(depth + 1));
                     }
                 }
@@ -100,15 +107,15 @@ class type_parser {
         if (const auto* opening = std::get_if<open_delimiter>(&current().value)) {
             const auto kind = opening->kind;
             if (kind == delimiter::bracket) {
-                cursor_.advance();
+                advance();
                 auto element = production(depth + 1);
                 (void)close(delimiter::bracket);
                 return value_type::array(std::move(element));
             }
             if (kind == delimiter::parenthesis) {
-                cursor_.advance();
+                advance();
                 if (closing(kind)) {
-                    cursor_.advance();
+                    advance();
                     return {};
                 }
                 auto first = production(depth + 1);
@@ -116,13 +123,13 @@ class type_parser {
                     (void)close(kind);
                     return first;
                 }
-                cursor_.advance();
+                advance();
                 std::vector<value_type> fields;
                 fields.push_back(std::move(first));
                 if (!closing(kind)) {
                     fields.push_back(production(depth + 1));
                     while (punctuation_is(",")) {
-                        cursor_.advance();
+                        advance();
                         fields.push_back(production(depth + 1));
                     }
                 }
@@ -140,7 +147,12 @@ public:
     /// Parses one prefix without consuming its following host token.
     /// Complexity: O(tokens + name bytes + descriptor construction + any lexed bytes),
     /// O(nodes + bounded recursion) storage.
-    value_type parse() { return production(0); }
+    value_type parse(source_span* parsed_span = nullptr) {
+        const auto start = current().span;
+        auto result = production(0);
+        if (parsed_span) *parsed_span = {start.begin, last_.end};
+        return result;
+    }
 };
 } // namespace
 value_type parse_type(token_cursor& cursor, const op_lookup& lookup) {
@@ -148,6 +160,14 @@ value_type parse_type(token_cursor& cursor, const op_lookup& lookup) {
 }
 value_type parse_type(lex_lexer& cursor, const op_lookup& lookup) {
     return type_parser(cursor, lookup).parse();
+}
+/// Parses a token prefix and publishes its exact successful source interval.
+value_type parse_type(token_cursor& cursor, const op_lookup& lookup, source_span& parsed_span) {
+    return type_parser(cursor, lookup).parse(&parsed_span);
+}
+/// Parses a text prefix and publishes its exact successful source interval.
+value_type parse_type(lex_lexer& cursor, const op_lookup& lookup, source_span& parsed_span) {
+    return type_parser(cursor, lookup).parse(&parsed_span);
 }
 value_type parse_type(std::span<const token> tokens, const op_lookup& lookup) {
     token_cursor cursor(tokens);

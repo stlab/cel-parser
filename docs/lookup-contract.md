@@ -1,7 +1,8 @@
 # Lookup and complete types {#lookup_contract}
 
 This reference helps library clients register owned operations and parse complete
-types through `cel::parser`. It doesn't define expression parsing.
+types through `cel::parser`. See the [expression grammar](expression-grammar.md)
+for expression syntax and compilation.
 
 ## Ownership and exact registration
 

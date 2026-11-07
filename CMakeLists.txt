@@ -20,17 +20,17 @@ find_package(cel-runtime CONFIG REQUIRED)
 
 # Setup library
 cpp_library_setup(
-    DESCRIPTION "CEL tokens, complete type parsing, and checked operation lookup"
+    DESCRIPTION "CEL expression compilation, owned tokens, and checked operation lookup"
     NAMESPACE cel
     REQUIRES_CPP_VERSION 20
-    HEADERS parser.hpp parser/lookup.hpp
-    SOURCES parser.cpp lookup.cpp type.cpp
+    HEADERS parser.hpp parser/lookup.hpp parser/compiler.hpp
+    SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp
-    TESTS tests.cpp lookup_test.cpp type_test.cpp allocation_test.cpp
-        cursor_copy_fail.cpp lexer_copy_fail.cpp
+    TESTS tests.cpp lookup_test.cpp type_test.cpp allocation_test.cpp expression_test.cpp
+        cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp
     DOCS_INPUTS README.md docs/lexical-contract.md docs/evidence.md
-        docs/lookup-contract.md docs/builtin-census.md
+        docs/lookup-contract.md docs/builtin-census.md docs/expression-grammar.md
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
         "FULL_PATH_NAMES = NO"
         "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"

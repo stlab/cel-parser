@@ -91,6 +91,7 @@ TEST_CASE("inline type parsing leaves host token and errors retain exact byte sp
     } catch (const cel::parse_error& error) {
         CHECK(error.span() == cel::source_span{1, 8});
     }
+
     auto invalid = std::array{cel::token{
         {20, 21}, cel::parse_error(cel::error_category::malformed_input, {20, 21}, "producer")}};
     try {
@@ -109,4 +110,20 @@ TEST_CASE("inline type parsing leaves host token and errors retain exact byte sp
     } catch (const cel::parse_error& error) {
         CHECK(error.category() == cel::error_category::resource_limit);
     }
+}
+
+TEST_CASE("type prefix span output excludes whitespace and publishes only on success") {
+    cel::op_lookup lookup;
+    cel::source_span parsed{90, 91};
+    cel::lex_lexer source("  Fn((), [f64])   , next");
+    CHECK(cel::parse_type(source, lookup, parsed).result().kind() == cel::type_kind::array);
+    CHECK(parsed == cel::source_span{2, 15});
+    CHECK(std::get<cel::punctuation>(source.current().value).spelling() == ",");
+    const auto input = tokens("  [f64]   , next");
+    cel::token_cursor cursor(input);
+    CHECK(cel::parse_type(cursor, lookup, parsed).kind() == cel::type_kind::array);
+    CHECK(parsed == cel::source_span{2, 7});
+    cel::lex_lexer invalid("[Unknown]");
+    CHECK_THROWS_AS(cel::parse_type(invalid, lookup, parsed), cel::parse_error);
+    CHECK(parsed == cel::source_span{2, 7});
 }

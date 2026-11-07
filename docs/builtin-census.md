@@ -2,8 +2,9 @@
 
 This reference lets parser maintainers check the retained operation inventory
 against Rust revision `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
-It distinguishes checked emission from expression productions deferred to P3.
-The runtime prerequisite is `cf778609c4659ade809a9c643ca7705c8dbcbc35`.
+It distinguishes implemented P3 expression/emission behavior from pending P4
+differential verification. The runtime prerequisite is
+`bf2d2ac9fe420139b85d1adec9d57c1565356e32`.
 
 ## Source and dispatch anchors
 
@@ -33,6 +34,9 @@ Scope callbacks and descriptor emitters execute during compilation.
 Each row names exact arguments/results. `D` means `f64`; `B` means `bool`.
 Every row is implemented with public checked runtime emission. The test anchors
 name cases in `tests/lookup_test.cpp`.
+Source syntax/precedence and standard-name call selectors are also covered by
+`retained precedence` and `standard numeric names` in `tests/expression_test.cpp`.
+See the [expression grammar](expression-grammar.md) for every emission edge.
 
 | Name | Exact signature | Rust producer in `op_table.rs` unless noted | Semantics and test evidence |
 | --- | --- | --- | --- |
@@ -79,24 +83,24 @@ Cast targets retain only the spellings `bool` and `f64`. A registered alias of
 either leaf is valid in type syntax but isn't a cast target. Unary `+` is absent,
 not an identity operation. Tests reject both extensions.
 
-## Structural and lazy emission handoff
+## Structural and lazy expression completion
 
 These families use runtime-described complete shapes, not one concrete nested
 template specialization. `T` and `R` denote arbitrary valid complete types;
 callable parameters retain their stricter eligibility rules.
 
-| Family | Exact effect / dispatch | Rust source anchor | P2 disposition and P3 boundary |
+| Family | Exact effect / dispatch | Rust source anchor | Implemented P3 syntax/emission and focused test |
 | --- | --- | --- | --- |
-| Tuple/unit construction | Source-ordered `(T0, ..., Tn) -> tuple(T0, ..., Tn)` | `cel-parser/src/lib.rs:2075–2160` | Public runtime `make_tuple`; P2 complete type parsing and structural registration tests; literal grammar deferred |
-| Tuple projection | `tuple(T0, ..., Tn) -> Ti` | Delivered P1 `cel-parser/src/lib.rs:1828–1870` | Public `project_tuple`; P2 generic structural emitter test; structural spelling and `.0.1` splitting deferred |
-| Array construction | Homogeneous `(T ... T) -> [T]`, including annotated empty arrays | `cel-parser/src/lib.rs:2164–2247` | Public `make_array`; complete array types implemented; literal/annotation grammar deferred |
-| Array index | `([T], D) -> T` for checked finite integral in-bounds D | Rust postfix grammar at `cel-parser/src/lib.rs:1782–1784` has no bracket index suffix | Approved C++ boundary adaptation uses public `index_array`; P3 must select its source syntax explicitly, not claim an existing Rust index builtin |
-| Nominal records | Schema-complete field construction and receiver-first typed selection | Delivered record evidence: `cel-parser/src/parser_context.rs:846–858`, `cel-euclid/src/geometry.rs:48–58,160–178` | Complete owned registration, descriptor emitters, custom precedence, canonical `project_record` fallback implemented; field-construction grammar deferred |
-| Named function values | Bare name -> first marker; `(marker, Args...) -> R` through direct signatures | `cel-parser/src/registered_ops.rs:303–334,448–489` | Implemented; lower prefix and marker retirement tested |
-| Installed callable invocation | `(Fn((Args...), R), Args...) -> R` | `cel-parser/src/op_table.rs:2125–2137` | Public `invoke_closure`; arbitrary nested parameter and client-result tests implemented; call suffix grammar deferred |
-| Closure creation | Independent body/parameters -> installed Fn value with any complete R | Delivered closure contract and `cel-parser/src/type_expr.rs:98–115` | Public `push_closure`; full Fn types/selectors/scope isolation implemented; parameter/body grammar deferred |
-| Lazy `&&`, `||` | Bool LHS plus selected dependent bool RHS -> bool | `cel-parser/src/lib.rs:1322–1372`, `cel-parser/src/parser_context.rs:874–894` | Public `logical_and`/`logical_or`; no eager name-table replacement; lazy expression grammar deferred |
-| Conditional | Bool condition plus one selected dependent body -> shared complete result | `cel-parser/src/parser_context.rs:897–918` | Public `if_else`; absent else must synthesize unit; conditional grammar deferred |
+| Tuple/unit construction | Source-ordered `(T0, ..., Tn) -> tuple(T0, ..., Tn)` | `cel-parser/src/lib.rs:2075–2160` | `()` / `(x,)` / `(x,y)` use `make_tuple`; `tuple group unit` |
+| Tuple projection | `tuple(T0, ..., Tn) -> Ti` | `cel-parser/src/lib.rs:1828–1870` | `.N`, including `.0.1` raw splitting, uses `project_tuple`; `tuple selectors` |
+| Array construction | Homogeneous `(T ... T) -> [T]`, including annotated empty arrays | `cel-parser/src/lib.rs:2182–2247` | `[x,y]:[T]` / `[]:[T]` use `make_array`, bound empty type witnesses; `tuple group unit`, `closures admit complete` |
+| Array index | `([T], D) -> T` for checked finite integral in-bounds D | Rust has no bracket postfix at `cel-parser/src/lib.rs:1782–1784` | Approved C++ postfix `[expression]` uses `index_array`; `explicit C++ array indexing` |
+| Nominal records | Schema-complete field construction and receiver-first typed selection | `cel-parser/src/lib.rs:2006–2071`, supplied record evidence | `Name{field:expr}` maps source order through `make_record`; `.field` uses member lookup; `registered names`, `semantic record parameters` |
+| Named function values | Bare name -> first marker; `(marker, Args...) -> R` through direct signatures | `cel-parser/src/registered_ops.rs:303–334,448–489` | Bare names / `name(args)` use ordinary zero/marker-inclusive lookup; `registered names`, `standard numeric names` |
+| Installed callable invocation | `(Fn((Args...), R), Args...) -> R` | `cel-parser/src/op_table.rs:2125–2137` | `(callee)(args)` uses ordinary `"()"`, public `invoke_closure`; `closures admit complete` |
+| Closure creation | Independent body/parameters -> installed Fn value with any complete R | `cel-parser/src/lib.rs:2416–2491` | `|| expr` / `|name:T| expr` uses isolated formals and `push_closure`; `closures admit complete`, `independent closure scope` |
+| Lazy `&&`, `\|\|` | Bool LHS plus selected dependent bool RHS -> bool | `cel-parser/src/lib.rs:1322–1372`, `cel-parser/src/parser_context.rs:874–894` | `a && b` / `a \|\| b` use dependent `logical_and` / `logical_or`; `lazy branches` |
+| Conditional | Bool condition plus one selected dependent body -> shared complete result | `cel-parser/src/lib.rs:2507–2582`, `cel-parser/src/parser_context.rs:897–918` | `if cond {a} [else {b}/else if ...]` uses dependent `if_else`; absent else emits unit; `lazy branches` |
 
 No universal tuple/array equality, floating range iteration, or `len` builtin
 appears in the core table or standard installer. Tuple-shaped operations are
@@ -126,4 +130,5 @@ The following signatures are not retained:
 
 Tests reject removed type names, converting callbacks, wrong nominal operands,
 unsupported casts and bitwise names, missing functions, and composite equality.
-P3 must preserve these dispatch failures when it implements expression syntax.
+P3 expression tests preserve these dispatch failures. P4 differential
+verification remains pending for all retained and rejected rows.

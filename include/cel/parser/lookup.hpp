@@ -334,9 +334,22 @@ value_type parse_type(token_cursor& cursor, const op_lookup& lookup);
 /// Complexity: O(lexed source bytes + complete descriptor construction), O(nodes + 128) storage.
 /// Example: lex_lexer cursor("[f64], next"); auto type = parse_type(cursor, lookup).
 value_type parse_type(lex_lexer& cursor, const op_lookup& lookup);
+/// Parses one token type prefix and returns its exact consumed byte interval in parsed_span.
+/// Follows the two-argument prefix overload's grammar, errors, ownership, and complexity.
+/// - Postcondition: parsed_span excludes surrounding whitespace and the following host token.
+/// Leaves parsed_span unchanged if parsing fails; the cursor may have advanced.
+/// Example: source_span span; auto type = parse_type(cursor, lookup, span).
+value_type parse_type(token_cursor& cursor, const op_lookup& lookup, source_span& parsed_span);
+/// Parses one text type prefix and returns its exact consumed interval without a token copy.
+/// Follows the token span-output overload's grammar, errors, ownership, and complexity.
+/// Example: lex_lexer c("[f64] , next"); source_span s; auto t = parse_type(c, lookup, s).
+value_type parse_type(lex_lexer& cursor, const op_lookup& lookup, source_span& parsed_span);
 /// Parses one complete type and rejects trailing input; follows the inline grammar contract.
 /// Complexity: O(tokens + name bytes + complete descriptor construction), O(nodes + 128) storage.
 /// Example: auto type = parse_type(std::span<const token>(tokens), lookup).
 value_type parse_type(std::span<const token> tokens, const op_lookup& lookup);
 } // namespace cel
+// [knowledge] Include the compiler after op_lookup is complete; this header also uses the token
+// umbrella.
+#include <cel/parser/compiler.hpp>
 #endif

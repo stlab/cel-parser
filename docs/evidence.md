@@ -1,13 +1,14 @@
 # Source evidence and parser handoff
 
-This reference records the token-boundary source contracts and the lookup/type
-milestone's dependencies. It doesn't claim expression-parser completion.
+This reference records the source contracts and dependencies for tokens,
+lookup/types, and retained expression compilation. It doesn't claim P4
+Rust/C++ differential verification.
 
 ## Source revisions
 
 The Rust source revision is `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
 Accepted sibling runtime packaging is at
-`cf778609c4659ade809a9c643ca7705c8dbcbc35`. The parser consumes its public installed
+`bf2d2ac9fe420139b85d1adec9d57c1565356e32`. The parser consumes its public installed
 package; it neither copies runtime implementation nor includes private headers.
 
 The delivered Rust evidence establishes these contracts:
@@ -105,17 +106,19 @@ clang-format -i src/unicode_data.hpp
 Confirm that `git diff -- src/unicode_data.hpp` is empty. Consumers don't need
 Python or network access to use the committed tables.
 
-## Remaining parser milestones
+## Expression compilation and remaining verification
 
 Owned operation lookup, complete recursive type parsing, and retained bool/f64
-emitters are implemented. See the [built-in census](builtin-census.md) for the
-source-bound disposition and tests for each family. Expression productions and
-differential parity remain separate milestones.
+emitters and retained expression productions are implemented. See the
+[built-in census](builtin-census.md) and [expression grammar](expression-grammar.md)
+for source-bound dispositions and contract tests. P4 differential parity and
+final performance/platform review remain separate milestones.
 
-The expression parser must consume only `current()` and `advance()`. It must
-retain strict Wirth-style LL(1) separator laws, use exact numeric spellings for
-structural selectors, split `.0.1` appropriately, and reject scientific/suffixed
-tuple selectors. Array indexing requires a checked binary64-to-index boundary.
+The expression compiler consumes only `current()` and `advance()`. It retains
+strict Wirth-style LL(1) separator laws, uses exact numeric spellings for
+structural selectors, splits `.0.1`, and rejects scientific/suffixed tuple
+selectors. Postfix `[expression]` is the approved C++ array-index adaptation
+and uses the runtime's checked binary64-to-index boundary.
 
 The lexer tests cover lifetime independence, full source-byte spans, comments,
 Unicode names and malformed UTF-8, arbitrary-depth iterative traversal, numeric
