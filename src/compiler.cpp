@@ -507,12 +507,11 @@ class expression_compiler {
     /// O(fields + names) temporary storage.
     void record(dyn_segment& builder, std::string_view name, source_span start) {
         const auto type = lookup_.find_type(name);
-        if (!type || type->kind() != type_kind::record)
-            throw parse_error(error_category::type_error, start, "unknown record constructor");
+        const bool registered = type && type->kind() == type_kind::record;
         advance();
         const auto ambient = builder.snapshot();
         std::unordered_map<std::string_view, std::size_t> positions;
-        const auto names = type->field_names();
+        const auto names = registered ? type->field_names() : std::span<const std::string>{};
         for (std::size_t i = 0; i != names.size(); ++i)
             positions.emplace(names[i], i);
         std::vector<bool> supplied(names.size(), false);
@@ -522,18 +521,26 @@ class expression_compiler {
                 const auto field_span = current().span;
                 const auto field = expect_name();
                 const auto found = positions.find(field);
-                if (found == positions.end() || supplied[found->second])
+                if (registered && (found == positions.end() || supplied[found->second]))
                     throw parse_error(error_category::type_error, field_span,
                                       "unknown or duplicate record field");
                 expect_punctuation(":");
                 ordinary(builder);
-                supplied[found->second] = true;
-                permutation.push_back(found->second);
+                if (registered) {
+                    if (!builder.operand_types(1).front().same_shape(type->fields()[found->second]))
+                        throw parse_error(error_category::type_error, field_span,
+                                          "record field type mismatch");
+                    supplied[found->second] = true;
+                    permutation.push_back(found->second);
+                }
                 if (!punctuation_is(",")) break;
                 advance();
             } while (true);
         }
         expect_group(delimiter::brace, false);
+        if (!registered)
+            throw parse_error(error_category::type_error, span_from(start),
+                              "unknown record constructor");
         structural(span_from(start), [&] {
             builder.make_record(bind_runtime_ownership(*type), permutation, ambient);
         });

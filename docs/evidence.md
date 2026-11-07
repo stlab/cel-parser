@@ -1,12 +1,14 @@
 # Source evidence and parser handoff
 
 This reference records the source contracts and dependencies for tokens,
-lookup/types, and retained expression compilation. It doesn't claim P4
-Rust/C++ differential verification.
+lookup/types, retained expression compilation, and P4 validation.
 
 ## Source revisions
 
 The Rust source revision is `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
+P4 fixes malformed selector conversion spans at
+`1516e45f0799927043352ffeeb2b13d58ac66526`; the unchanged census anchors remain
+pinned to the original baseline.
 Accepted sibling runtime packaging is at
 `bf2d2ac9fe420139b85d1adec9d57c1565356e32`. The parser consumes its public installed
 package; it neither copies runtime implementation nor includes private headers.
@@ -111,8 +113,10 @@ Python or network access to use the committed tables.
 Owned operation lookup, complete recursive type parsing, and retained bool/f64
 emitters and retained expression productions are implemented. See the
 [built-in census](builtin-census.md) and [expression grammar](expression-grammar.md)
-for source-bound dispositions and contract tests. P4 differential parity and
-final performance/platform review remain separate milestones.
+for source-bound dispositions and contract tests. The
+[P4 handoff](p4-handoff.md) maps every retained family to differential,
+equivalent public-interface, or explicit adaptation evidence.
+Independent final review and unavailable platform gates remain separate.
 
 The expression compiler consumes only `current()` and `advance()`. It retains
 strict Wirth-style LL(1) separator laws, uses exact numeric spellings for
@@ -123,5 +127,7 @@ and uses the runtime's checked binary64-to-index boundary.
 The lexer tests cover lifetime independence, full source-byte spans, comments,
 Unicode names and malformed UTF-8, arbitrary-depth iterative traversal, numeric
 boundaries, compound separation, producer cursor termination, and static
-non-clonability. Future differential tests must normalize the documented
-text-adapter differences rather than compare incidental exception messages.
+non-clonability. The differential tooling normalizes only named, documented
+adapter fixtures rather than incidental exception messages. See
+[validation](validation.md) for configuration, diagnostic rulings,
+installed clients, and warmed allocation/timing boundaries.

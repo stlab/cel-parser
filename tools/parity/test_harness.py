@@ -1,0 +1,42 @@
+"""Verifies fail-closed comparison and the two permitted IEEE normalizations."""
+import unittest
+from harness import compare
+
+
+class ComparisonTests(unittest.TestCase):
+    """Checks observable fixture decisions, independent of either evaluator."""
+
+    def test_mismatch_is_not_accepted(self):
+        """Rejects changed finite values, types, traces, spans, and exit categories."""
+        row = {"id": "probe"}
+        good = ["ok", "D", "4008000000000000", "1,2"]
+        for bad in [
+            ["ok", "D", "4000000000000000", "1,2"],
+            ["ok", "B", "true", "1,2"],
+            ["ok", "D", "4008000000000000", "2,1"],
+            ["parse", "0", "1", "malformed_input"],
+        ]:
+            with self.assertRaises(AssertionError):
+                compare(row, good, bad)
+        with self.assertRaises(AssertionError):
+            compare({"id": "span", "category": "type_error"},
+                    ["parse", "0", "8", "type_error"],
+                    ["parse", "3", "8", "parse"])
+        with self.assertRaises(AssertionError):
+            compare(row, ["parse", "0", "1", "type_error"],
+                    ["parse", "0", "1", "parse"])
+
+    def test_only_explicit_zero_choice_normalizes(self):
+        """Accepts unspecified extrema zero signs without hiding other differences."""
+        positive = ["ok", "D", "0000000000000000", ""]
+        negative = ["ok", "D", "8000000000000000", ""]
+        compare({"id": "min", "zero_choice": True}, positive, negative)
+        with self.assertRaises(AssertionError):
+            compare({"id": "negation"}, positive, negative)
+        with self.assertRaises(AssertionError):
+            compare({"id": "min", "zero_choice": True}, positive,
+                    ["ok", "D", "3ff0000000000000", ""])
+
+
+if __name__ == "__main__":
+    unittest.main()

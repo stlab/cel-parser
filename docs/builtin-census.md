@@ -2,8 +2,8 @@
 
 This reference lets parser maintainers check the retained operation inventory
 against Rust revision `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
-It distinguishes implemented P3 expression/emission behavior from pending P4
-differential verification. The runtime prerequisite is
+P4 adds differential and equivalent public-interface evidence, mapped in the
+[feature closure](p4-handoff.md). The runtime prerequisite is
 `bf2d2ac9fe420139b85d1adec9d57c1565356e32`.
 
 ## Source and dispatch anchors
@@ -130,5 +130,7 @@ The following signatures are not retained:
 
 Tests reject removed type names, converting callbacks, wrong nominal operands,
 unsupported casts and bitwise names, missing functions, and composite equality.
-P3 expression tests preserve these dispatch failures. P4 differential
-verification remains pending for all retained and rejected rows.
+Expression tests preserve these dispatch failures. P4 `type-lookup-errors`
+fixtures add shared rejection comparisons; removed scalar spellings and
+C++ parameter exclusions retain their explicit own-contract tests rather
+than being recast as supported signatures.

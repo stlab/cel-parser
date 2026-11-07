@@ -1,8 +1,9 @@
 # Expression grammar and emission {#expression_grammar}
 
 This reference lets C++ clients compile the retained CEL language and lets
-maintainers compare its productions with executable Rust consumers. P3
-implementation and P4 differential verification are separate milestones.
+maintainers compare its productions with executable Rust consumers. The
+[P4 closure](p4-handoff.md) maps productions to actual comparisons and
+independent public adaptation contracts.
 
 The source baseline is Rust commit
 `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`. All Rust paths in the table are
@@ -97,7 +98,7 @@ The following cases in `tests/expression_test.cpp` cover the implementation:
 and `tests/installed_consumer/compiler.cpp` exercises the public installed
 compiler and runtime together.
 
-P4 differential execution against Rust remains pending for every row. Deliberate adaptations
+P4 fixtures cover every retained production family. Deliberate adaptations
 remain bool/f64 scalar availability, unsuffixed-number typing, public canonical
 record carriers, checked double array indexing, C++ exceptions, and byte-based
 text spans. No floating range iteration, universal aggregate equality,
@@ -122,8 +123,12 @@ metadata use storage proportional to their actual input.
 
 Source diagnostics preserve producer categories/messages/spans. Member lookup
 errors identify the member name. Malformed raw tuple selectors identify their
-selector token. Structural validation identifies the complete expression interval,
-and non-array annotation errors identify the complete parsed type interval.
+selector token, including failed conversions of a maximally munched dotted
+token. Record field type mismatches identify the field name; unknown constructors
+and incomplete schemas identify the complete record expression. Other structural
+validation identifies the complete expression interval, and non-array annotation
+errors identify the complete parsed type interval. P4 corrects the original Rust
+selector conversion span loss at `1516e45f0799927043352ffeeb2b13d58ac66526`.
 The public span-output `parse_type` overloads provide exact consumed intervals,
 excluding following whitespace/host tokens. Selected client-emitter failures
 are not caught by structural diagnostic translation. Evaluation uses frozen

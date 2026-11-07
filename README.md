@@ -4,8 +4,8 @@ This C++20 library gives CEL library developers owned tokens, byte-located
 diagnostics, forward-only traversal, complete type parsing, checked operation
 lookup, and retained CEL expression compilation. You can register client types
 and callbacks, compile source once, and execute cached code after the parser
-dies. JSON decoding and Rust/C++ differential verification are outside this library's
-P3 milestone.
+dies. Separate test tooling compares retained contracts with public Rust interfaces.
+JSON decoding remains your application's responsibility.
 
 ## Build and verify
 
@@ -139,6 +139,38 @@ propagate without becoming syntax diagnostics. Recursive expression nesting is
 limited to 128 active expression/conditional productions; flat operator,
 postfix, and list chains are iterative.
 
+## Cache decoded expression strings
+
+Decode your JSON transport before calling the parser. The runnable
+[`cached_decoded`](examples/cached_decoded.cpp) client receives three decoded
+strings, prepares each scalar result once, destroys the compiler, reserves
+one prefixed stack, and repeatedly calls the prepared handles:
+
+```cpp
+std::array<std::string_view, 3> decoded{"2+3", "10-4", "sqrt(81)"};
+auto programs = client::compile_decoded(decoded);
+cel::raw_stack stack;
+stack.push(true);
+client::reserve(programs, stack);
+double sum = 0;
+for (int repeat = 0; repeat != 1000; ++repeat)
+    for (const auto& program : programs)
+        sum += program.call(stack);
+```
+
+The example-local helpers in
+[`cached_decoded.hpp`](examples/cached_decoded.hpp) use only installed public
+interfaces; they are not additional library APIs. The compiler retains no
+borrow of the decoded strings. The complete runnable example checks the sum
+and preserved prefix. Run it with `build/test/cached_decoded`.
+
+Preparation avoids repeated result-type matching. Reservation covers known
+stack requirements, not arbitrary callback allocations or composite payloads.
+Direct scalar arithmetic/member dispatch has a measured zero-allocation warmed
+path. Named calls currently pack and retire an owning marker/result tuple even
+when their result is scalar. Composite returns and dynamic invocation have
+separate ownership/staging costs. See [validation and measurement](docs/validation.md).
+
 ## Reference and provenance
 
 See the [lexical contract](docs/lexical-contract.md) for tokens, source ownership,
@@ -149,7 +181,8 @@ See the [expression grammar](docs/expression-grammar.md) for precedence,
 aggregate annotations, explicit closures, and ownership/diagnostic contracts.
 See the [source evidence](docs/evidence.md) for
 the pinned Rust contracts, Unicode generation, numeric conversion, dependencies,
-and remaining parser work.
+and validation boundaries.
+See [the P4 handoff](docs/p4-handoff.md) for fixture closure and review/platform boundaries.
 
 Generate strict Doxygen documentation with the provided preset:
 
@@ -162,3 +195,8 @@ cmake --build --preset=docs
 The generated CI describes GCC, Clang, macOS, and Windows checks. A generated
 workflow isn't evidence that those jobs have executed. Its runners must receive
 an installed runtime package before configuring this parser.
+The manual `provisioned-validation.yml` additionally requires an installed
+Release runtime, matching ASan+UBSan runtime, and local Rust reference checkout.
+It neither provisions a self-hosted runner nor defines runtime/source hosting.
+The default build does not silently attempt parity; enable the fail-closed
+local gate explicitly with the commands in [validation](docs/validation.md).

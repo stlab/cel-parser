@@ -244,6 +244,8 @@ TEST_CASE("registered names member selectors record permutation and source evalu
     CHECK(evaluate(parser, "named(2)").as<double>() == 20);
     CHECK_THROWS_AS(parser.parse_str("1.named()(2)"), cel::parse_error);
     CHECK_THROWS_AS(parser.parse_str("plus(1, 2)"), cel::parse_error);
+    error_at(parser, "Pair{x:true,y:2}", cel::error_category::type_error, {5, 6});
+    error_at(parser, "Unknown{}", cel::error_category::type_error, {0, 9});
     for (auto text :
          {"Pair{x:1}", "Pair{x:1,x:2}", "Pair{z:1,y:2}", "Pair{x:true,y:2}", "Pair{x:1,y:2,}",
           "Pair{x 1,y:2}", "Unknown{}", "named(1,)", "1.plus(2,)", "Pair{x:1,y:2}.missing"}) {
