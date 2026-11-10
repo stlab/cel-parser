@@ -136,8 +136,9 @@ Names use transparent borrowed hash lookup. Matching scales with overload count,
 arity, and distinct compared metadata pairs; the runtime retains DAG-safe
 comparison. Scope storage is an owned vector searched in reverse. Type parsing
 uses bounded predictive recursion and allocates complete immutable descriptors.
-`operand_origin` borrows actual runtime type witnesses and reconstructs only the
-live prefix in O(prefix depth) without allocation or a mirrored type stack.
+The runtime's `dyn_segment::origin_below(count)` queries its cached operand
+origin in O(1) time and space without allocation. Marker-call emission uses that
+query rather than reconstructing runtime layout or maintaining a mirrored stack.
 
 Registration and compilation allocate metadata and heterogeneous callback storage.
 Typed scalar execution uses runtime thunks and can reuse a prepared caller stack
