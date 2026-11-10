@@ -22,6 +22,22 @@ struct second {
 struct named_function {};
 /// Marks an independent installer's binding of the same function name.
 struct other_marker {};
+/// Owns a copyable, nonmovable over-aligned registered callback.
+struct alignas(256) copy_only_factor {
+    double factor; ///< Owns the multiplication factor.
+    /// Initializes the factor.
+    explicit copy_only_factor(double input) : factor(input) {}
+    /// Copies the factor independently.
+    copy_only_factor(const copy_only_factor&) = default;
+    /// Disallows move construction.
+    copy_only_factor(copy_only_factor&&) = delete;
+    /// Multiplies the operand by the owned factor.
+    double operator()(double input) const { return factor * input; }
+};
+/// Marks a function with a valid over-aligned opaque client leaf.
+struct alignas(256) aligned_marker {
+    double number; ///< Owns observable marker state.
+};
 /// Evaluates a complete ordinary program through the public prepared boundary.
 /// Complexity: O(compiled operations + native conversion + callback execution).
 template <class R>
@@ -41,6 +57,33 @@ R operation(const cel::op_lookup& lookup, std::string_view name, A... arguments)
     return evaluate<R>(std::move(builder));
 }
 } // namespace
+
+TEST_CASE("structural registrations reject nontrivial adapters without reserving names") {
+    cel::op_lookup lookup;
+    CHECK_THROWS_AS(lookup.register_type<std::vector<double>>("array"), std::invalid_argument);
+    CHECK_THROWS_AS(lookup.register_type<std::tuple<double>>("tuple"), std::invalid_argument);
+    CHECK_THROWS_AS(lookup.register_function("marker", std::vector<double>{}),
+                    std::invalid_argument);
+    CHECK_THROWS_AS(lookup.register_function("marker", std::tuple{1.0}), std::invalid_argument);
+    CHECK_FALSE(lookup.find_type("array"));
+    CHECK_FALSE(lookup.find_type("tuple"));
+    lookup.register_type<first>("array");
+    lookup.register_type<second>("tuple");
+    lookup.register_function("marker", named_function{});
+    CHECK_NOTHROW(operation<named_function>(lookup, "marker"));
+}
+
+TEST_CASE("lookup owns independent copies of over-aligned lvalue callbacks and markers") {
+    cel::op_lookup lookup;
+    copy_only_factor callback(3.0);
+    lookup.register_op<double, double>("scale", callback);
+    callback.factor = 99.0;
+    CHECK(operation<double>(lookup, "scale", 2.0) == 6.0);
+    aligned_marker marker{7.0};
+    lookup.register_function("aligned", marker);
+    marker.number = 99.0;
+    CHECK(operation<aligned_marker>(lookup, "aligned").number == 7.0);
+}
 
 TEST_CASE("native extension registrations preserve nested structural descriptors and origins") {
     using nested = std::tuple<std::tuple<>, std::vector<std::tuple<bool, first>>>;

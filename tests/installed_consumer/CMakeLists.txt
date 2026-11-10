@@ -36,11 +36,6 @@ add_test(NAME cached_consumer COMMAND cached_consumer)
 add_executable(measurement_consumer ../../tools/measurement.cpp)
 target_link_libraries(measurement_consumer PRIVATE cel::parser)
 set_target_properties(measurement_consumer PROPERTIES CXX_EXTENSIONS OFF)
-if(CMAKE_CXX_CLANG_TIDY)
-    # Match the bounded impossible-array-path exclusion on the measurement target.
-    set_property(TARGET measurement_consumer APPEND PROPERTY CXX_CLANG_TIDY
-        "--checks=-clang-analyzer-unix.cstring.NullArg")
-endif()
 add_test(NAME measurement_consumer COMMAND measurement_consumer 10)
 foreach(client lookup_consumer cached_consumer measurement_consumer)
     if(MSVC)

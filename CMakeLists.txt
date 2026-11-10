@@ -12,6 +12,7 @@ cpp_library_enable_dependency_tracking()
 # Now declare project
 project(parser LANGUAGES CXX)
 set(CMAKE_CXX_EXTENSIONS OFF)
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 include(GNUInstallDirs)
 
 # Enable CTest infrastructure (required for tests/examples to work)
@@ -22,7 +23,7 @@ option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVE
 CPMAddPackage(
     NAME cel-runtime
     GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG 6be981a40606138140c21fe2349d8d8d44888aa5
+    GIT_TAG 885bcd30e638b603a01f3bc054e2882e0f1412e9
     OPTIONS "BUILD_TESTING OFF"
 )
 
@@ -73,12 +74,6 @@ if(CEL_PARSER_BUILD_MEASUREMENTS)
     add_executable(measurement tools/measurement.cpp)
     target_link_libraries(measurement PRIVATE cel::parser)
     set_target_properties(measurement PROPERTIES CXX_EXTENSIONS OFF)
-    if(CMAKE_CXX_CLANG_TIDY)
-        # The analyzer invents a nonempty f64 array with null element storage in the
-        # installed adapter. Valid canonical arrays cannot satisfy that path.
-        set_property(TARGET measurement APPEND PROPERTY CXX_CLANG_TIDY
-            "--checks=-clang-analyzer-unix.cstring.NullArg")
-    endif()
     if(BUILD_TESTING)
         add_test(NAME measurement_contracts COMMAND measurement 10)
     endif()

@@ -117,10 +117,10 @@ class op_lookup {
     void install_builtins();
     /// Inserts one typed built-in using the same exact runtime thunk boundary.
     template <class R, class... A, class F>
-    void builtin(std::string_view name, F callback) {
+    void builtin(std::string_view name, F&& callback) {
         const std::array<value_type, sizeof...(A)> inputs{native_type<A>()...};
         insert(builtins_, name, inputs, native_type<R>(),
-               [callback = std::move(callback)](dyn_segment& builder, source_span) {
+               [callback = std::forward<F>(callback)](dyn_segment& builder, source_span) {
                    builder.template op<R, A...>(callback);
                });
     }
@@ -153,10 +153,14 @@ public:
     /// Example: lookup.register_type<my_trivial_type>("Point").
     template <class T>
     void register_type(std::string_view name) {
-        auto type = value_type::leaf<T>();
-        if (!type.compatible_with(native_type<T>()))
+        if constexpr (!detail::native_leaf<T>) {
             throw std::invalid_argument("named leaf registration requires an opaque leaf");
-        insert_type(name, std::move(type));
+        } else {
+            auto type = value_type::leaf<T>();
+            if (!type.compatible_with(native_type<T>()))
+                throw std::invalid_argument("named leaf registration requires an opaque leaf");
+            insert_type(name, std::move(type));
+        }
     }
     /// Registers an owned complete nominal record schema, never a guessed native layout.
     /// Throws invalid_argument for empty/duplicate/reserved names or invalid field names.
@@ -190,18 +194,19 @@ public:
     /// Concrete vectors/tuples use trusted public adapters; opaque leaves are trivially copyable.
     /// Use std::tuple<> for source unit; void is not a source value.
     /// Duplicate operands are rejected even if R differs. Callback references stay client-owned.
+    /// Lvalue callbacks are copied; rvalue callbacks are moved into owned decayed storage.
     /// Complexity: O(overloads * arity * distinct compared plans + name/capture storage +
     /// first-use complete structural descriptor construction).
     /// Example: lookup.register_op<double, double>("negate", [](double x) { return -x; }).
     template <class R, class... A, class F>
-    requires(!std::is_void_v<R> && requires(dyn_segment & b, F callback) {
-        b.template op<R, A...>(std::move(callback));
-    }) void register_op(std::string_view name, F callback) {
+    requires(!std::is_void_v<R> && requires(dyn_segment & b, F&& callback) {
+        b.template op<R, A...>(std::forward<F>(callback));
+    }) void register_op(std::string_view name, F&& callback) {
         const std::array<value_type, sizeof...(A)> inputs{native_type<A>()...};
-        auto owned = std::make_shared<const F>(std::move(callback));
+        auto owned = std::make_shared<const std::decay_t<F>>(std::forward<F>(callback));
         register_operation(name, inputs, native_type<R>(),
                            [owned = std::move(owned)](dyn_segment& builder, source_span) {
-                               builder.template op<R, A...>([owned](A... arguments) -> R {
+                               builder.template op<R, A...>([owned](A&&... arguments) -> R {
                                    return std::invoke(*owned, std::move(arguments)...);
                                });
                            });
@@ -213,14 +218,20 @@ public:
     /// Complexity: O(name bytes + marker size), expected hash insertion.
     /// Example: lookup.register_function("convert", my_marker{}).
     template <class M>
-    void register_function(std::string_view name, M marker) {
-        const auto type = value_type::leaf<M>();
-        auto owned = value::from(marker);
-        if (!type.compatible_with(owned.type()))
+    void register_function(std::string_view name, M&& marker) {
+        using marker_type = std::decay_t<M>;
+        if constexpr (!detail::native_leaf<marker_type>) {
             throw std::invalid_argument("function markers require an opaque leaf");
-        insert_function(name, type, [owned = std::move(owned)](dyn_segment& builder, source_span) {
-            builder.just(owned);
-        });
+        } else {
+            const auto type = value_type::leaf<marker_type>();
+            auto owned = value::from<marker_type>(std::forward<M>(marker));
+            if (!type.compatible_with(owned.type()))
+                throw std::invalid_argument("function markers require an opaque leaf");
+            insert_function(name, type,
+                            [owned = std::move(owned)](dyn_segment& builder, source_span) {
+                                builder.just(owned);
+                            });
+        }
     }
     /// Owns a transient scope searched before persistent registrations and libraries.
     /// Throws invalid_argument for an empty callback.
