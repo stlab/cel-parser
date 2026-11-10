@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSL-1.0
 #ifndef CEL_EXAMPLE_CACHED_DECODED_HPP
 #define CEL_EXAMPLE_CACHED_DECODED_HPP
-#include <cel/parser.hpp>
+#include <cel/parser/all.hpp>
 
 /// Demonstrates a client-owned cache; JSON decoding is outside this interface.
 namespace client {

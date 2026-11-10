@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
-#include <cel/parser.hpp>
+#include <cel/parser/lookup.hpp>
 #include <cfenv>
 #include <cmath>
 #include <limits>
@@ -41,6 +41,28 @@ R operation(const cel::op_lookup& lookup, std::string_view name, A... arguments)
     return evaluate<R>(std::move(builder));
 }
 } // namespace
+
+TEST_CASE("native extension registrations preserve nested structural descriptors and origins") {
+    using nested = std::tuple<std::tuple<>, std::vector<std::tuple<bool, first>>>;
+    cel::op_lookup lookup;
+    lookup.register_op<nested, nested>("copy_nested", [](nested input) { return input; });
+    const nested input{{}, {{true, first{4.0}}}};
+    const auto copied = operation<nested>(lookup, "copy_nested", input);
+    CHECK(std::get<1>(std::get<1>(copied)[0]).number == 4.0);
+    lookup.register_function("measure_named", named_function{});
+    lookup.register_op<double, first>("measure_named", [](first input) { return input.number; });
+    cel::dyn_segment builder;
+    builder.just(cel::value::from(true));
+    const auto prefix = builder.snapshot();
+    lookup.apply("measure_named", builder, 0, {});
+    builder.just(cel::value::from(first{9.0}));
+    lookup.apply("()", builder, 2, {});
+    CHECK(builder.origin_below(1) == prefix);
+    builder.make_tuple(2, {});
+    const auto result = evaluate<std::tuple<bool, double>>(std::move(builder));
+    CHECK(std::get<0>(result));
+    CHECK(std::get<1>(result) == 9.0);
+}
 
 TEST_CASE("exact registrations preserve overload identity and callback lifetime") {
     cel::dyn_segment compiled;

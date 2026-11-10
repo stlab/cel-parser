@@ -202,6 +202,4 @@ public:
 
 } // namespace cel
 
-#include <cel/parser/lookup.hpp>
-
 #endif // CEL_PARSER_HPP

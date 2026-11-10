@@ -68,22 +68,6 @@ struct fract_marker {};
 struct round_marker {};
 } // namespace
 
-stack_origin operand_origin(const dyn_segment& builder, std::size_t count) {
-    const auto origin = builder.origin();
-    const auto local_depth = builder.snapshot().depth - origin.depth;
-    if (count > local_depth) throw std::invalid_argument("operation operand underflow");
-    const auto prefix = builder.operand_types(local_depth).first(local_depth - count);
-    std::size_t cursor = origin.bytes;
-    // Reconstruct only the live canonical prefix from the builder's actual immutable witnesses.
-    for (const auto& type : prefix) {
-        cursor = align_offset(cursor, type.byte_layout().alignment);
-        if (type.byte_layout().size > std::numeric_limits<std::size_t>::max() - cursor)
-            throw std::overflow_error("canonical origin overflow");
-        cursor += type.byte_layout().size;
-    }
-    return {cursor, builder.snapshot().depth - count};
-}
-
 void op_lookup::insert(names<std::vector<operation>>& destination,
                        std::string_view name,
                        std::span<const value_type> inputs,
@@ -259,7 +243,7 @@ void op_lookup::apply(std::string_view name,
                 const auto marker = marker_names_.find(operands[0].leaf_identity());
                 if (marker != marker_names_.end() &&
                     functions_.at(marker->second).marker.compatible_with(operands[0])) {
-                    const auto ambient = operand_origin(builder, arity);
+                    const auto ambient = builder.origin_below(arity);
                     if (direct_match(marker->second, builder, arity - 1, span, selection)) {
                         builder.make_tuple(2, ambient);
                         builder.project_tuple(1);

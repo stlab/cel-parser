@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSL-1.0
 #ifndef CEL_PARITY_DRIVER_SUPPORT_HPP
 #define CEL_PARITY_DRIVER_SUPPORT_HPP
-#include <cel/parser.hpp>
+#include <cel/parser/lookup.hpp>
 #include <optional>
 #include <stdexcept>
 #include <string>

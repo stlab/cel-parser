@@ -23,10 +23,10 @@ cpp_library_setup(
     DESCRIPTION "CEL expression compilation, owned tokens, and checked operation lookup"
     NAMESPACE cel
     REQUIRES_CPP_VERSION 20
-    HEADERS parser.hpp parser/lookup.hpp parser/compiler.hpp
+    HEADERS parser.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
-    TESTS tests.cpp lookup_test.cpp type_test.cpp allocation_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp
+    TESTS tests.cpp lookup_test.cpp type_test.cpp allocation_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
         cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp
     DOCS_INPUTS README.md docs/lexical-contract.md docs/evidence.md
@@ -46,6 +46,13 @@ endif()
 install(FILES LICENSE licenses/Unicode-3.0.txt
     DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/cel-parser")
 if(BUILD_TESTING)
+    foreach(header parser.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp)
+        string(MAKE_C_IDENTIFIER "${header}" header_id)
+        set(header_source "${CMAKE_CURRENT_BINARY_DIR}/header_${header_id}.cpp")
+        file(GENERATE OUTPUT "${header_source}" CONTENT "#include <cel/${header}>\n")
+        add_library(header_${header_id} OBJECT "${header_source}")
+        target_link_libraries(header_${header_id} PRIVATE cel::parser)
+    endforeach()
     get_target_property(runtime_includes cel::runtime INTERFACE_INCLUDE_DIRECTORIES)
     list(GET runtime_includes 0 runtime_include)
     get_filename_component(CEL_PARSER_RUNTIME_PREFIX "${runtime_include}" DIRECTORY)

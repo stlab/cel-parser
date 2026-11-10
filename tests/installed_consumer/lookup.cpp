@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
 #include <array>
-#include <cel/parser.hpp>
+#include <cel/parser/lookup.hpp>
 #include <tuple>
 #include <vector>
 

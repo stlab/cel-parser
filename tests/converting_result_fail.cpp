@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
-#include <cel/parser.hpp>
+#include <cel/parser/lookup.hpp>
 
 /// Fails compilation because exact registration never adapts a removed float result to f64.
 int main() {

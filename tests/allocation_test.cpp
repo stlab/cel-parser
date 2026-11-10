@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
-#include <cel/parser.hpp>
+#include <cel/parser/compiler.hpp>
 #include <cstdlib>
 #include <new>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN

@@ -40,43 +40,8 @@ using scope_callback =
 /// Example: [](dyn_segment& b, source_span) { b.project_tuple(0); }.
 using operation_emitter = std::function<void(dyn_segment&, source_span)>;
 
-/// Builds public structural witnesses without exposing native composite layout.
+/// Supplies allocation-free heterogeneous name lookup.
 namespace parser_detail {
-/// Maps a trusted concrete leaf to its public runtime descriptor.
-template <class T>
-struct native_descriptor {
-    /// Returns exact concrete identity; opaque nontrivial leaves fail compilation.
-    static value_type get() { return value_type::leaf<T>(); }
-};
-/// Maps an owning standard vector through the runtime's public structural descriptor.
-template <class T, class A>
-struct native_descriptor<std::vector<T, A>> {
-    /// Retains the recursively complete element; cached metadata shares immutable state.
-    /// Complexity: O(distinct concrete descriptor nodes and fields) on first use, O(1) thereafter.
-    static value_type get() {
-        static const auto type = value_type::array(native_descriptor<T>::get());
-        return type;
-    }
-};
-/// Maps an owning standard tuple without assuming its native object layout.
-template <class... T>
-struct native_descriptor<std::tuple<T...>> {
-    /// Retains source-ordered complete fields.
-    /// Complexity: O(distinct concrete descriptor nodes and fields) on first use, O(1) thereafter.
-    static value_type get() {
-        static const auto type = [] {
-            const std::array fields{native_descriptor<T>::get()...};
-            return value_type::tuple(fields);
-        }();
-        return type;
-    }
-};
-/// Maps source unit without relying on empty class-template argument deduction.
-template <>
-struct native_descriptor<std::tuple<>> {
-    /// Returns the public unit descriptor.
-    static value_type get() { return {}; }
-};
 /// Hashes owned names and borrowed query strings with the same hash.
 struct name_hash {
     using is_transparent = void; ///< Enables allocation-free borrowed lookup.
@@ -87,12 +52,6 @@ struct name_hash {
     }
 };
 } // namespace parser_detail
-
-/// Returns the canonical origin below count local operands without mutating the builder.
-/// Throws invalid_argument on local underflow; accounting failures propagate.
-/// Complexity: O(local prefix depth), with no type copies or allocations.
-/// Example: builder.make_tuple(2, operand_origin(builder, 2)).
-stack_origin operand_origin(const dyn_segment& builder, std::size_t count);
 
 /// Owns exact registrations, nominal schemas, and LIFO scope callbacks.
 /// Names, descriptors, and callbacks never borrow registration arguments.
@@ -159,9 +118,8 @@ class op_lookup {
     /// Inserts one typed built-in using the same exact runtime thunk boundary.
     template <class R, class... A, class F>
     void builtin(std::string_view name, F callback) {
-        const std::array<value_type, sizeof...(A)> inputs{
-            parser_detail::native_descriptor<A>::get()...};
-        insert(builtins_, name, inputs, parser_detail::native_descriptor<R>::get(),
+        const std::array<value_type, sizeof...(A)> inputs{native_type<A>()...};
+        insert(builtins_, name, inputs, native_type<R>(),
                [callback = std::move(callback)](dyn_segment& builder, source_span) {
                    builder.template op<R, A...>(callback);
                });
@@ -196,7 +154,7 @@ public:
     template <class T>
     void register_type(std::string_view name) {
         auto type = value_type::leaf<T>();
-        if (!type.compatible_with(parser_detail::native_descriptor<std::remove_cv_t<T>>::get()))
+        if (!type.compatible_with(native_type<T>()))
             throw std::invalid_argument("named leaf registration requires an opaque leaf");
         insert_type(name, std::move(type));
     }
@@ -239,10 +197,9 @@ public:
     requires(!std::is_void_v<R> && requires(dyn_segment & b, F callback) {
         b.template op<R, A...>(std::move(callback));
     }) void register_op(std::string_view name, F callback) {
-        const std::array<value_type, sizeof...(A)> inputs{
-            parser_detail::native_descriptor<A>::get()...};
+        const std::array<value_type, sizeof...(A)> inputs{native_type<A>()...};
         auto owned = std::make_shared<const F>(std::move(callback));
-        register_operation(name, inputs, parser_detail::native_descriptor<R>::get(),
+        register_operation(name, inputs, native_type<R>(),
                            [owned = std::move(owned)](dyn_segment& builder, source_span) {
                                builder.template op<R, A...>([owned](A... arguments) -> R {
                                    return std::invoke(*owned, std::move(arguments)...);
@@ -293,8 +250,8 @@ public:
     /// Ordinary calls count the marker/callee plus explicit arguments; members count the receiver.
     /// Precondition: callbacks do not modify this lookup's registrations or scope sets.
     /// Throws parse_error with span on no match; comparison and selected-emitter failures
-    /// propagate. Complexity: O(scopes + overloads * arity * distinct compared plans + local prefix
-    /// depth for marker retirement); captures and metadata allocate during compilation, not scalar
+    /// propagate. Complexity: O(scopes + overloads * arity * distinct compared plans);
+    /// captures and metadata allocate during compilation, not scalar
     /// execution. Example: lookup.apply("+", builder, 2, source_span{0, 3}).
     void apply(std::string_view name,
                dyn_segment& builder,
@@ -349,7 +306,4 @@ value_type parse_type(lex_lexer& cursor, const op_lookup& lookup, source_span& p
 /// Example: auto type = parse_type(std::span<const token>(tokens), lookup).
 value_type parse_type(std::span<const token> tokens, const op_lookup& lookup);
 } // namespace cel
-// [knowledge] Include the compiler after op_lookup is complete; this header also uses the token
-// umbrella.
-#include <cel/parser/compiler.hpp>
 #endif

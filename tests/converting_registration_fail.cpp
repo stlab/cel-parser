@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
-#include <cel/parser.hpp>
+#include <cel/parser/lookup.hpp>
 /// Rejects an implicit operand conversion at the public registration boundary.
 int main() {
     cel::op_lookup lookup;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
 #include <algorithm>
-#include <cel/parser.hpp>
+#include <cel/parser/compiler.hpp>
 #include <charconv>
 #include <iterator>
 #include <limits>
