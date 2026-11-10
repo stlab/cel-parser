@@ -3,8 +3,8 @@
 This reference lets parser maintainers check the retained operation inventory
 against Rust revision `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
 P4 adds differential and equivalent public-interface evidence, mapped in the
-[feature closure](p4-handoff.md). The runtime prerequisite is
-`bf2d2ac9fe420139b85d1adec9d57c1565356e32`.
+[feature closure](p4-handoff.md). Use the corrected runtime prerequisite pinned
+in [source evidence](evidence.md).
 
 ## Source and dispatch anchors
 

@@ -12,13 +12,28 @@ JSON decoding remains your application's responsibility.
 Use CMake 3.24 or later, Ninja, and a C++20 compiler with floating-point
 `std::from_chars` support. The library requires IEEE binary64 `double` and an
 installed `cel-runtime` package exposing checked structural/lazy/callable emission
-and `bind_runtime_ownership`
-(accepted prerequisite revision `bf2d2ac9fe420139b85d1adec9d57c1565356e32`).
+and `bind_runtime_ownership`. Use the corrected runtime revision pinned in
+[source evidence](docs/evidence.md), including the shared native descriptor
+and cached origin APIs.
 Do not enable fast-math.
 
-Set `RUNTIME_PREFIX` to that package's installation prefix before these commands.
-The runtime's hosting location is undecided; this library doesn't invent a
-remote acquisition route.
+The runtime upstream is
+[Adobe-CreativeCloud/cel-runtime](https://github.com/Adobe-CreativeCloud/cel-runtime).
+You need authorized access to obtain that source. Set `RUNTIME_SOURCE` to an
+absolute path to its checkout at the pinned revision, and `RUNTIME_PREFIX` to
+an absolute installation prefix. Build and install the prerequisite first:
+
+```sh
+cmake -S "$RUNTIME_SOURCE" -B "$RUNTIME_SOURCE/build/parser-release" \
+  -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build "$RUNTIME_SOURCE/build/parser-release"
+ctest --test-dir "$RUNTIME_SOURCE/build/parser-release" --output-on-failure
+cmake --install "$RUNTIME_SOURCE/build/parser-release" \
+  --prefix "$RUNTIME_PREFIX"
+```
+
+Confirm that the runtime tests pass and that the prefix contains
+`lib/cmake/cel-runtime/cel-runtimeConfig.cmake`, then build this parser:
 
 1. Configure the Debug tests:
 
@@ -60,6 +75,10 @@ both installation prefixes through `CMAKE_PREFIX_PATH`. The parser exports its
 public `cel::runtime` dependency and resolves it with `find_dependency`.
 Its exported configuration contains no personal or sibling paths.
 
+Use `<cel/parser.hpp>` for tokens and traversal, `<cel/parser/lookup.hpp>` for
+lookup and types, and `<cel/parser/compiler.hpp>` for expression compilation.
+The explicit full-stack umbrella is `<cel/parser/all.hpp>`.
+
 Read one scalar with the public header:
 
 ```cpp
@@ -84,7 +103,7 @@ values, nested composites, and complete type parsing through installed headers.
 Compile a callback through checked lookup:
 
 ```cpp
-#include <cel/parser.hpp>
+#include <cel/parser/lookup.hpp>
 
 int main() try {
     cel::dyn_segment builder;
@@ -111,7 +130,7 @@ remain your lifetime responsibility.
 Compile decoded text and execute the cached program on your reusable stack:
 
 ```cpp
-#include <cel/parser.hpp>
+#include <cel/parser/all.hpp>
 
 int main() try {
     auto code = [] {
@@ -192,11 +211,14 @@ cmake --preset=docs \
 cmake --build --preset=docs
 ```
 
-The generated CI describes GCC, Clang, macOS, and Windows checks. A generated
-workflow isn't evidence that those jobs have executed. Its runners must receive
-an installed runtime package before configuring this parser.
+The cpp-library-derived hosted matrix is gated off by default because its
+runners have no runtime package or authenticated dependency-provisioning step.
+Keep the repository variable `CEL_PARSER_HOSTED_CI_ENABLED` unset until that
+step is implemented; setting the variable alone does not install a runtime.
+Skipped jobs do not establish GCC, Clang, macOS, Windows, or documentation CI.
 The manual `provisioned-validation.yml` additionally requires an installed
 Release runtime, matching ASan+UBSan runtime, and local Rust reference checkout.
-It neither provisions a self-hosted runner nor defines runtime/source hosting.
+It serializes dispatches without interrupting an active run and bounds each job
+to 60 minutes. It does not provision a self-hosted runner or acquire dependencies.
 The default build does not silently attempt parity; enable the fail-closed
 local gate explicitly with the commands in [validation](docs/validation.md).

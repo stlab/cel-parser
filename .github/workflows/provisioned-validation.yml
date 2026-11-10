@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSL-1.0
-# The cpp-library generated matrix is unchanged. This manual entry accepts provisioned
+# The cpp-library hosted matrix is gated. This manual entry accepts provisioned
 # public packages; it deliberately defines no hosting or source acquisition policy.
 name: Provisioned local inputs
 on:
@@ -19,10 +19,14 @@ on:
         type: string
 permissions:
   contents: read
+concurrency:
+  group: provisioned-validation
+  cancel-in-progress: false
 jobs:
   validate:
     # No runner or remote hosting is provisioned by this repository.
     runs-on: self-hosted
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - name: Require provisioned inputs

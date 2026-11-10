@@ -9,9 +9,15 @@ The Rust source revision is `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
 P4 fixes malformed selector conversion spans at
 `1516e45f0799927043352ffeeb2b13d58ac66526`; the unchanged census anchors remain
 pinned to the original baseline.
-Accepted sibling runtime packaging is at
-`bf2d2ac9fe420139b85d1adec9d57c1565356e32`. The parser consumes its public installed
-package; it neither copies runtime implementation nor includes private headers.
+The runtime source upstream is
+[Adobe-CreativeCloud/cel-runtime](https://github.com/Adobe-CreativeCloud/cel-runtime).
+Use runtime revision `6be981a40606138140c21fe2349d8d8d44888aa5`.
+This prerequisite includes shared native descriptors, cached operand origins,
+result-first operation helpers, stack-independent
+executable retirement and complete higher-order result ownership checks; the
+earlier P4 runtime revision is insufficient. The parser consumes the public
+installed package; it neither copies runtime implementation nor includes
+private headers.
 
 The delivered Rust evidence establishes these contracts:
 

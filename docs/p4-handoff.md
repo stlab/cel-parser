@@ -3,7 +3,7 @@
 P4 adds public differential tooling, a cached decoded-expression client,
 installed clients, separate execution measurements, and explicit provisioned
 CI inputs. It does not publish packages or establish overall port completion.
-The controller owns independent task and final whole-port reviews.
+Automated validation does not replace independent code review.
 
 ## Feature closure
 
@@ -42,17 +42,19 @@ regressions. It also corrected Rust malformed tuple selector conversion spans
 at `1516e45f0799927043352ffeeb2b13d58ac66526`; it did not normalize the defect
 away. See [validation](validation.md) for exact adapters and driver contracts.
 
-P4 used runtime prerequisite
-`bf2d2ac9fe420139b85d1adec9d57c1565356e32` and changed only its documentation.
-The final integrated wave subsequently corrects executable retirement and
-higher-order result ownership. Validation must consume the corrected normal
-and instrumented runtime installations; the session's `final-fix-wave-report.md`
-identifies their revisions and inputs. Ordinary named scalar calls allocate
+The final integrated wave corrects executable retirement and higher-order result
+ownership. Use the corrected runtime revision in [source evidence](evidence.md)
+and the build/install commands in the [README](../README.md). Validation must
+consume normal and instrumented installations of that same runtime revision;
+see [validation](validation.md) for the matching sanitizer configuration.
+The shipped runtime tests `executable_retirement_test.cpp` and
+`callable_test.cpp` cover these ownership regressions.
+Ordinary named scalar calls allocate
 owning marker/result intermediates; direct scalar dispatch measurements remain
 separate. Native owning composites and dynamic invocation retain their costs.
 
-The session's `parser-task-4-report.md` records final revisions, exact local
-commands/results, RED/GREEN evidence, installed prefix checks, and measurements.
+The [validation guide](validation.md) supplies reproducible commands, reference
+inputs, installed-prefix checks, and measurement boundaries.
 Actual GCC, MSVC, macOS LSan, remote CI, hosting, and independent reviews are
 not established by AppleClang/local evidence. Repeat the validation commands
 when changing a contract or reference revision.
@@ -92,5 +94,5 @@ normalization to selected source witnesses, and validates complete response
 schemas before comparison or adaptations. `parity_driver_test.cpp`, Rust
 reference tests, and comparator negatives cover previously hidden failures.
 This wave adds one parser CTest and two Rust driver tests; the historical P4
-measurements and evidence remain unchanged. Correction-scoped approval remains
-the controller's responsibility.
+measurements and evidence remain unchanged. Independent code review remains
+separate from this automated evidence.
