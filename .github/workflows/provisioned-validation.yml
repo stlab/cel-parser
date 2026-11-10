@@ -1,18 +1,9 @@
 # SPDX-License-Identifier: BSL-1.0
-# The cpp-library hosted matrix is gated. This manual entry accepts provisioned
-# public packages; it deliberately defines no hosting or source acquisition policy.
-name: Provisioned local inputs
+# CPM builds the runtime source; the runner supplies Git access and a Rust checkout.
+name: Provisioned reference validation
 on:
   workflow_dispatch:
     inputs:
-      runtime_prefix:
-        description: Installed Release cel-runtime prefix on the provisioned runner
-        required: true
-        type: string
-      sanitized_runtime_prefix:
-        description: Matching ASan+UBSan cel-runtime prefix
-        required: true
-        type: string
       reference_source:
         description: Local cel-rs source checkout including Cargo.lock
         required: true
@@ -32,25 +23,19 @@ jobs:
       - name: Require provisioned inputs
         shell: bash
         env:
-          RUNTIME_PREFIX: ${{ inputs.runtime_prefix }}
-          SANITIZED_RUNTIME_PREFIX: ${{ inputs.sanitized_runtime_prefix }}
           REFERENCE_SOURCE: ${{ inputs.reference_source }}
         run: |
-          test -f "$RUNTIME_PREFIX/lib/cmake/cel-runtime/cel-runtimeConfig.cmake"
-          test -f "$SANITIZED_RUNTIME_PREFIX/lib/cmake/cel-runtime/cel-runtimeConfig.cmake"
           test -f "$REFERENCE_SOURCE/cel-parser/Cargo.toml"
           test -f "$REFERENCE_SOURCE/Cargo.lock"
       - name: Debug and Release unit, negative compilation, parity, and installed clients
         shell: bash
         env:
-          RUNTIME_PREFIX: ${{ inputs.runtime_prefix }}
           REFERENCE_SOURCE: ${{ inputs.reference_source }}
         run: |
           for mode in Debug Release; do
             cmake -S . -B "build/provisioned-$mode" -G Ninja \
               "-DCMAKE_BUILD_TYPE=$mode" -DBUILD_TESTING=ON \
               "-DCMAKE_CXX_FLAGS=-Wall -Wextra -Wpedantic -Werror" \
-              "-Dcel-runtime_DIR=$RUNTIME_PREFIX/lib/cmake/cel-runtime" \
               -DCEL_PARSER_ENABLE_PARITY=ON \
               "-DCEL_PARSER_REFERENCE_SOURCE=$REFERENCE_SOURCE" \
               -DCEL_PARSER_BUILD_MEASUREMENTS=ON
@@ -60,15 +45,13 @@ jobs:
               build/provisioned-Release/measurement 100000
             fi
           done
-      - name: Matching instrumented packages
+      - name: Matching instrumented source builds
         shell: bash
         env:
-          SANITIZED_RUNTIME_PREFIX: ${{ inputs.sanitized_runtime_prefix }}
           REFERENCE_SOURCE: ${{ inputs.reference_source }}
         run: |
           cmake -S . -B build/provisioned-sanitized -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
-            "-Dcel-runtime_DIR=$SANITIZED_RUNTIME_PREFIX/lib/cmake/cel-runtime" \
             -DCEL_PARSER_ENABLE_PARITY=ON \
             "-DCEL_PARSER_REFERENCE_SOURCE=$REFERENCE_SOURCE" \
             "-DCMAKE_CXX_FLAGS=-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer" \
@@ -83,12 +66,10 @@ jobs:
       - name: Lint and strict documentation
         shell: bash
         env:
-          RUNTIME_PREFIX: ${{ inputs.runtime_prefix }}
           REFERENCE_SOURCE: ${{ inputs.reference_source }}
         run: |
           git ls-files -z '*.cpp' '*.hpp' | xargs -0 clang-format --dry-run --Werror
           cmake --preset clang-tidy \
-            "-Dcel-runtime_DIR=$RUNTIME_PREFIX/lib/cmake/cel-runtime" \
             "-DCMAKE_CXX_FLAGS=-Wall -Wextra -Wpedantic -Werror" \
             -DCEL_PARSER_ENABLE_PARITY=ON \
             "-DCEL_PARSER_REFERENCE_SOURCE=$REFERENCE_SOURCE" \
@@ -99,5 +80,5 @@ jobs:
           cargo test --manifest-path build/provisioned-Debug/parity-reference/Cargo.toml --locked
           cargo clippy --manifest-path build/provisioned-Debug/parity-reference/Cargo.toml \
             --locked --all-targets -- -D warnings
-          cmake --preset docs "-Dcel-runtime_DIR=$RUNTIME_PREFIX/lib/cmake/cel-runtime"
+          cmake --preset docs
           cmake --build --preset docs

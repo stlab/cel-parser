@@ -10,14 +10,14 @@ P4 fixes malformed selector conversion spans at
 `1516e45f0799927043352ffeeb2b13d58ac66526`; the unchanged census anchors remain
 pinned to the original baseline.
 The runtime source upstream is
-[Adobe-CreativeCloud/cel-runtime](https://github.com/Adobe-CreativeCloud/cel-runtime).
+[stlab/cel-runtime](https://github.com/stlab/cel-runtime).
 Use runtime revision `6be981a40606138140c21fe2349d8d8d44888aa5`.
 This prerequisite includes shared native descriptors, cached operand origins,
 result-first operation helpers, stack-independent
 executable retirement and complete higher-order result ownership checks; the
 earlier P4 runtime revision is insufficient. The parser consumes the public
-installed package; it neither copies runtime implementation nor includes
-private headers.
+target from a pinned CPM source dependency; it neither copies runtime
+implementation nor includes private headers.
 
 The delivered Rust evidence establishes these contracts:
 

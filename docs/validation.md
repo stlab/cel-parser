@@ -6,9 +6,9 @@ The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
 
-Set `RUNTIME_PREFIX` to a Release installation of the corrected runtime revision
-in [source evidence](evidence.md). Follow the [README](../README.md) to build
-and install it.
+CPM fetches and builds the runtime revision in [source evidence](evidence.md).
+Configure Git with read access to its repository; no runtime installation is
+required.
 Set `REFERENCE_SOURCE` to your local `cel-rs` checkout. The accepted reference
 starts at `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`; the P4 selector diagnostic
 correction is `1516e45f0799927043352ffeeb2b13d58ac66526`.
@@ -16,7 +16,6 @@ Use an ordinary C++20 build without fast-math:
 
 ```sh
 cmake --preset test \
-  -Dcel-runtime_DIR="$RUNTIME_PREFIX/lib/cmake/cel-runtime" \
   -DCEL_PARSER_ENABLE_PARITY=ON \
   -DCEL_PARSER_REFERENCE_SOURCE="$REFERENCE_SOURCE" \
   -DCEL_PARSER_BUILD_MEASUREMENTS=ON
@@ -103,33 +102,18 @@ between languages.
 
 ## Verify installed consumption
 
-`installed_consumer` installs parser output into an isolated prefix containing
-the selected public runtime package. It rejects leaked checkout/sibling paths
+`installed_consumer` installs parser and runtime output from the same build tree
+into an isolated prefix. It rejects leaked checkout/sibling paths
 and verifies both imported libraries and headers resolve to that prefix.
 Five package-only clients cover tokens, lookup, compiled composites/callables,
 the decoded scalar cache, and execution measurements. They link only
 `cel::parser`; `find_dependency` finds the runtime transitively.
-After an executable-ownership correction, rebuild against its newly installed
-runtime package. Sanitized parser/client checks require the corresponding
-instrumented runtime package, not an older accepted installation.
-
-Set `RUNTIME_SOURCE` to that same runtime checkout and
-`SANITIZED_RUNTIME_PREFIX` to a separate absolute installation prefix. Build
-and install the instrumented package before configuring the sanitized parser:
+The runtime shares the parser's compiler and instrumentation flags.
+To check both libraries and installed clients under ASan+UBSan:
 
 ```sh
-cmake -S "$RUNTIME_SOURCE" -B "$RUNTIME_SOURCE/build/parser-sanitized" \
-  -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
-  "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
-  "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
-cmake --build "$RUNTIME_SOURCE/build/parser-sanitized"
-ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 \
-  ctest --test-dir "$RUNTIME_SOURCE/build/parser-sanitized" --output-on-failure
-cmake --install "$RUNTIME_SOURCE/build/parser-sanitized" \
-  --prefix "$SANITIZED_RUNTIME_PREFIX"
 cmake -S . -B build/parser-sanitized -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
-  "-Dcel-runtime_DIR=$SANITIZED_RUNTIME_PREFIX/lib/cmake/cel-runtime" \
   "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
   "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined" \
   -DCEL_PARSER_ENABLE_PARITY=ON \
@@ -142,9 +126,10 @@ ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 \
 
 `detect_leaks=0` is required on macOS, which does not support LeakSanitizer.
 On a platform with supported LeakSanitizer, omit that override to retain leak
-detection. Confirm that both test suites, including installed consumption, pass.
+detection. Confirm that parser tests and installed clients pass.
 
-To repeat with packages you installed yourself:
+Set `COMBINED_PREFIX` to the absolute installation prefix containing both
+libraries. To repeat with packages you installed yourself:
 
 ```sh
 cmake -S tests/installed_consumer -B build/package-client -G Ninja \
@@ -157,7 +142,7 @@ No checkout include directory or explicit runtime target is required.
 
 ## Measure optimized warmed execution
 
-Configure Release with the same explicit runtime/reference inputs and
+Configure Release with the Rust reference checkout and
 `CEL_PARSER_BUILD_MEASUREMENTS=ON`, then run:
 
 ```sh
@@ -192,18 +177,16 @@ exercise actual owning conversion.
 
 ## Provision CI inputs explicitly
 
-The cpp-library-derived hosted jobs require the repository variable
-`CEL_PARSER_HOSTED_CI_ENABLED` to equal `true`. Keep it unset until authenticated
-runtime provisioning is implemented in those jobs. A variable does not install a
-package, and a skipped hosted matrix is not validation evidence.
-The separate manual workflow requires three explicit path inputs on an already
-provisioned Unix self-hosted runner: Release runtime prefix, matching
-ASan+UBSan runtime prefix, and Rust reference source including `Cargo.lock`.
+The cpp-library-derived hosted jobs fetch their dependencies through CPM.
+Runners need Git read access to the runtime repository, including any
+authentication required for a private repository.
+The separate manual workflow requires a Rust reference source path, including
+`Cargo.lock`, on an already provisioned Unix self-hosted runner.
 It runs Debug/Release, negative-compilation tests, installed clients, parity,
 measurements, matching sanitizer tests, lint, driver Cargo checks, and strict docs.
 It serializes manual dispatches without cancelling an active run and limits
-each job to 60 minutes. It does not provision a runner, acquire source/packages,
-or claim Windows coverage.
+each job to 60 minutes. It does not provision a runner, Git credentials, or the
+Rust checkout, or claim Windows coverage.
 
 Local AppleClang results do not establish actual GCC or MSVC results.
 macOS LeakSanitizer is unsupported and disabled; allocation counters are not

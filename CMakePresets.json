@@ -77,7 +77,7 @@
     {
       "name": "install",
       "displayName": "Install Configuration",
-      "description": "Release build for installation with CPM_USE_LOCAL_PACKAGES enabled for testing installed packages",
+      "description": "Release build for installing the library and its source dependencies",
       "binaryDir": "${sourceDir}/build/install",
       "generator": "Ninja",
       "cacheVariables": {
@@ -85,7 +85,7 @@
         "BUILD_TESTING": "OFF",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_CXX_EXTENSIONS": "OFF",
-        "CPM_USE_LOCAL_PACKAGES": "ON",
+        "CPM_USE_LOCAL_PACKAGES": "OFF",
         "CPM_SOURCE_CACHE": "${sourceDir}/.cache/cpm"
       }
     }

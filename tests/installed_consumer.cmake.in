@@ -3,7 +3,6 @@
 set(prefix "@CMAKE_CURRENT_BINARY_DIR@/installed-check/prefix")
 set(consumer_build "@CMAKE_CURRENT_BINARY_DIR@/installed-check/consumer")
 file(REMOVE_RECURSE "${prefix}" "${consumer_build}")
-file(COPY "@CEL_PARSER_RUNTIME_PREFIX@/" DESTINATION "${prefix}")
 execute_process(COMMAND "@CMAKE_COMMAND@" --install "@CMAKE_CURRENT_BINARY_DIR@"
     --config "${CONFIG}" --prefix "${prefix}" COMMAND_ERROR_IS_FATAL ANY)
 foreach(notice LICENSE Unicode-3.0.txt)

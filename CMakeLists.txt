@@ -16,7 +16,15 @@ include(GNUInstallDirs)
 
 # Enable CTest infrastructure (required for tests/examples to work)
 include(CTest)
-find_package(cel-runtime CONFIG REQUIRED)
+
+# Both cel packages share CEL_INSTALL; choose its default before adding dependencies.
+option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVEL})
+CPMAddPackage(
+    NAME cel-runtime
+    GITHUB_REPOSITORY stlab/cel-runtime
+    GIT_TAG 6be981a40606138140c21fe2349d8d8d44888aa5
+    OPTIONS "BUILD_TESTING OFF"
+)
 
 # Setup library
 cpp_library_setup(
@@ -53,9 +61,6 @@ if(BUILD_TESTING)
         add_library(header_${header_id} OBJECT "${header_source}")
         target_link_libraries(header_${header_id} PRIVATE cel::parser)
     endforeach()
-    get_target_property(runtime_includes cel::runtime INTERFACE_INCLUDE_DIRECTORIES)
-    list(GET runtime_includes 0 runtime_include)
-    get_filename_component(CEL_PARSER_RUNTIME_PREFIX "${runtime_include}" DIRECTORY)
     configure_file(tests/installed_consumer.cmake.in installed_consumer.cmake @ONLY)
     add_test(NAME installed_consumer
         COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"

@@ -1,9 +1,5 @@
 # Derived from cpp-library (https://github.com/stlab/cpp-library).
-# Hosted jobs are gated until authenticated cel-runtime package provisioning
-# is defined. Keep CEL_PARSER_HOSTED_CI_ENABLED unset until that implementation
-# is added; the variable alone does not provision a dependency.
-# Run provisioned-validation.yml on an already provisioned runner.
-# Preserve these guards when regenerating templates; skipped jobs are not validation.
+# CPM fetches the pinned runtime source; runners need Git read access to it.
 # Dependency versions are defined in cpp-library's cmake/cpp-library-ci.cmake
 # (https://github.com/stlab/cpp-library/blob/main/cmake/cpp-library-ci.cmake), not in this repo
 
@@ -19,7 +15,6 @@ on:
 
 jobs:
   test:
-    if: ${{ vars.CEL_PARSER_HOSTED_CI_ENABLED == 'true' }}
     name: Test (${{ matrix.name }})
     strategy:
       fail-fast: false
@@ -103,7 +98,6 @@ jobs:
           cmake -B build -S . -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
 
   clang-tidy:
-    if: ${{ vars.CEL_PARSER_HOSTED_CI_ENABLED == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -120,9 +114,7 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
-    if: >-
-      vars.CEL_PARSER_HOSTED_CI_ENABLED == 'true' &&
-      github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
       id-token: write
       pages: write

@@ -10,36 +10,20 @@ JSON decoding remains your application's responsibility.
 ## Build and verify
 
 Use CMake 3.24 or later, Ninja, and a C++20 compiler with floating-point
-`std::from_chars` support. The library requires IEEE binary64 `double` and an
-installed `cel-runtime` package exposing checked structural/lazy/callable emission
-and `bind_runtime_ownership`. Use the corrected runtime revision pinned in
-[source evidence](docs/evidence.md), including the shared native descriptor
-and cached origin APIs.
-Do not enable fast-math.
+`std::from_chars` support and IEEE binary64 `double`. Do not enable fast-math.
+CPM fetches the pinned cpp-library and `cel-runtime` sources and builds the
+runtime with the parser. Test builds also fetch doctest.
 
 The runtime upstream is
-[Adobe-CreativeCloud/cel-runtime](https://github.com/Adobe-CreativeCloud/cel-runtime).
-You need authorized access to obtain that source. Set `RUNTIME_SOURCE` to an
-absolute path to its checkout at the pinned revision, and `RUNTIME_PREFIX` to
-an absolute installation prefix. Build and install the prerequisite first:
-
-```sh
-cmake -S "$RUNTIME_SOURCE" -B "$RUNTIME_SOURCE/build/parser-release" \
-  -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-cmake --build "$RUNTIME_SOURCE/build/parser-release"
-ctest --test-dir "$RUNTIME_SOURCE/build/parser-release" --output-on-failure
-cmake --install "$RUNTIME_SOURCE/build/parser-release" \
-  --prefix "$RUNTIME_PREFIX"
-```
-
-Confirm that the runtime tests pass and that the prefix contains
-`lib/cmake/cel-runtime/cel-runtimeConfig.cmake`, then build this parser:
+[stlab/cel-runtime](https://github.com/stlab/cel-runtime).
+Configure Git with read access to that repository before running CMake.
+No runtime installation or package prefix is required. See
+[source evidence](docs/evidence.md) for the pinned revision.
 
 1. Configure the Debug tests:
 
    ```sh
-   cmake --preset=test \
-     -Dcel-runtime_DIR="$RUNTIME_PREFIX/lib/cmake/cel-runtime"
+   cmake --preset=test
    ```
 
 2. Build the library, example, and tests:
@@ -61,17 +45,16 @@ compilation in a fresh prefix.
 
 ## Consume the package
 
-Install the library with the generated installation preset:
+Install both libraries into one prefix with the generated installation preset:
 
 ```sh
-cmake --preset=install \
-  -Dcel-runtime_DIR="$RUNTIME_PREFIX/lib/cmake/cel-runtime"
+cmake --preset=install
 cmake --build --preset=install
 cmake --install build/install --prefix build/prefix
 ```
 
 Use `find_package(cel-parser CONFIG REQUIRED)` and link `cel::parser`. Supply
-both installation prefixes through `CMAKE_PREFIX_PATH`. The parser exports its
+the installation prefix through `CMAKE_PREFIX_PATH`. The parser exports its
 public `cel::runtime` dependency and resolves it with `find_dependency`.
 Its exported configuration contains no personal or sibling paths.
 
@@ -206,19 +189,17 @@ See [the P4 handoff](docs/p4-handoff.md) for fixture closure and review/platform
 Generate strict Doxygen documentation with the provided preset:
 
 ```sh
-cmake --preset=docs \
-  -Dcel-runtime_DIR="$RUNTIME_PREFIX/lib/cmake/cel-runtime"
+cmake --preset=docs
 cmake --build --preset=docs
 ```
 
-The cpp-library-derived hosted matrix is gated off by default because its
-runners have no runtime package or authenticated dependency-provisioning step.
-Keep the repository variable `CEL_PARSER_HOSTED_CI_ENABLED` unset until that
-step is implemented; setting the variable alone does not install a runtime.
-Skipped jobs do not establish GCC, Clang, macOS, Windows, or documentation CI.
-The manual `provisioned-validation.yml` additionally requires an installed
-Release runtime, matching ASan+UBSan runtime, and local Rust reference checkout.
+The cpp-library-derived hosted matrix uses the same CPM source dependencies.
+If the runtime repository is private, configure runner Git authentication with
+read access to it; source acquisition does not grant repository access.
+The manual `provisioned-validation.yml` additionally requires a local Rust
+reference checkout on a self-hosted runner.
 It serializes dispatches without interrupting an active run and bounds each job
-to 60 minutes. It does not provision a self-hosted runner or acquire dependencies.
+to 60 minutes. CPM builds the runtime with matching flags, including sanitizers.
+The workflow does not provision a runner, Git credentials, or the Rust checkout.
 The default build does not silently attempt parity; enable the fail-closed
 local gate explicitly with the commands in [validation](docs/validation.md).
