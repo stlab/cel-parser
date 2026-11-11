@@ -23,22 +23,22 @@ option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVE
 CPMAddPackage(
     NAME cel-runtime
     GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG 6709f3df4a97429d210be2390f6fac93bc21d0ef
+    GIT_TAG d9a48aa769fda20fa31648e3eb1955603a3898e4
     OPTIONS "BUILD_TESTING OFF"
 )
 
 # Setup library
 cpp_library_setup(
-    DESCRIPTION "CEL expression compilation, owned tokens, and checked operation lookup"
+    DESCRIPTION "UTF-8 CEL expression compilation and checked library extensions"
     NAMESPACE cel
     REQUIRES_CPP_VERSION 20
-    HEADERS parser.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
+    HEADERS parser.hpp parser/diagnostic.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
     TESTS tests.cpp lookup_test.cpp type_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
         cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp standard_library_fail.cpp
-        converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp
-    DOCS_INPUTS README.md docs/lexical-contract.md docs/evidence.md
+        converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp token_interface_fail.cpp
+    DOCS_INPUTS README.md docs/evidence.md
         docs/lookup-contract.md docs/builtin-census.md docs/expression-grammar.md
         docs/validation.md docs/p4-handoff.md
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
@@ -56,7 +56,10 @@ endif()
 install(FILES LICENSE licenses/Unicode-3.0.txt
     DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/cel-parser")
 if(BUILD_TESTING)
-    foreach(header parser.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp)
+    foreach(test tests lookup_test type_test expression_test parity_driver_test cursor_copy_fail lexer_copy_fail)
+        target_include_directories(${test} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    endforeach()
+    foreach(header parser.hpp parser/diagnostic.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp)
         string(MAKE_C_IDENTIFIER "${header}" header_id)
         set(header_source "${CMAKE_CURRENT_BINARY_DIR}/header_${header_id}.cpp")
         file(GENERATE OUTPUT "${header_source}" CONTENT "#include <cel/${header}>\n")
@@ -102,6 +105,7 @@ if(CEL_PARSER_ENABLE_PARITY)
             --source "${CEL_PARSER_REFERENCE_SOURCE}" --build "${reference_build}"
         VERBATIM)
     add_executable(parity_driver tools/parity/driver.cpp)
+    target_include_directories(parity_driver PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(parity_driver PRIVATE cel::parser)
     set_target_properties(parity_driver PROPERTIES CXX_EXTENSIONS OFF)
     add_test(NAME parity_comparator COMMAND "${Python3_EXECUTABLE}" -m unittest discover

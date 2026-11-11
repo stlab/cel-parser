@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "lookup_access.hpp"
 #include <algorithm>
 #include <cassert>
-#include <cel/parser/lookup.hpp>
 #include <cmath>
 
 namespace cel {
+using parser_detail::lookup_selector;
+using parser_detail::scope_selection;
 namespace {
 /// Reports whether a name belongs to the reserved language type inventory.
 /// Complexity: O(name bytes) for the fixed language name inventory.

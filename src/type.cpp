@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "type.hpp"
+#include "lookup_access.hpp"
 #include <algorithm>
-#include <cel/parser/lookup.hpp>
 
-namespace cel {
+namespace cel::parser_detail {
 namespace {
 /// Borrows one current-token cursor and an immutable complete-type resolver.
 template <class Cursor>
@@ -178,4 +179,4 @@ value_type parse_type(std::span<const token> tokens, const op_lookup& lookup) {
                           "trailing type input");
     return type;
 }
-} // namespace cel
+} // namespace cel::parser_detail

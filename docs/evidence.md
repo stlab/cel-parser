@@ -35,8 +35,8 @@ Rust integer literals retain integer types. The bool/f64 C++ core rejects
 integer value forms instead of converting them to f64. Integer tokens remain
 available for tuple selectors. Standard-library installation belongs to Rust
 `cel-std` or a corresponding separate C++ library, not this parser.
-The text adapter's byte spans and direct doc metadata are interface adaptations;
-see the [lexical contract](lexical-contract.md).
+The text adapter's byte spans and direct doc metadata are implementation adaptations;
+the maintainer reference is `docs/lexical-contract.md`.
 
 ## Upstream rules and numeric conversion
 

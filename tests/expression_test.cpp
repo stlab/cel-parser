@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "compiler.hpp"
+#include "lookup_access.hpp"
 #include <cel/parser/compiler.hpp>
 #include <cel/runtime.hpp>
 #include <cmath>
@@ -11,12 +13,12 @@
 namespace {
 /// Collects an external producer stream for the public borrowed-token boundary.
 /// Complexity: O(source bytes + tokens) time and storage.
-std::vector<cel::token> tokens(std::string_view source) {
-    cel::lex_lexer lexer(source);
-    std::vector<cel::token> result;
+std::vector<cel::parser_detail::token> tokens(std::string_view source) {
+    cel::parser_detail::lex_lexer lexer(source);
+    std::vector<cel::parser_detail::token> result;
     do {
         result.push_back(lexer.current());
-        if (std::holds_alternative<cel::end_token>(lexer.current().value)) break;
+        if (std::holds_alternative<cel::parser_detail::end_token>(lexer.current().value)) break;
         lexer.advance();
     } while (true);
     return result;
@@ -88,7 +90,8 @@ TEST_CASE("numeric values require floating literal forms without integer coercio
              std::pair{"0o10", cel::source_span{0, 4}}}) {
         CAPTURE(text);
         error_at(parser, text, cel::error_category::unsupported_literal, span);
-        CHECK_THROWS_AS(parser.parse_tokens(tokens(text)), cel::parse_error);
+        CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text)),
+                        cel::parse_error);
     }
     CHECK(evaluate(parser, "1.0+2.0").as<double>() == 3.0);
     CHECK(evaluate(parser, "(|x:f64|x)(1.0)").as<double>() == 1.0);
@@ -99,10 +102,11 @@ TEST_CASE("postfix brackets remain host input and are not core array indexing") 
     cel::parser parser{cel::op_lookup{}};
     const auto input = tokens("[1.0][0.0]");
     CHECK_THROWS_AS(parser.parse_str("[1.0][0.0]"), cel::parse_error);
-    CHECK_THROWS_AS(parser.parse_tokens(input), cel::parse_error);
-    cel::token_cursor cursor(input);
-    const auto program = parser.parse_expression(cursor);
-    REQUIRE(std::holds_alternative<cel::open_delimiter>(cursor.current().value));
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, input),
+                    cel::parse_error);
+    cel::parser_detail::token_cursor cursor(input);
+    const auto program = cel::parser_detail::parser_access::parse_expression(parser, cursor);
+    REQUIRE(std::holds_alternative<cel::parser_detail::open_delimiter>(cursor.current().value));
     CHECK(cursor.current().span == cel::source_span{5, 6});
     cel::raw_stack stack;
     CHECK(program.execute(stack, {}).at(0).as<double>() == 1.0);
@@ -191,8 +195,9 @@ TEST_CASE("all six range forms preserve complete type and endpoint order") {
     }
     for (auto text : {"..else", "1.0..else", "..as", "1.0..as"}) {
         const auto input = tokens(text);
-        cel::token_cursor cursor(input);
-        CHECK_THROWS_AS(parser.parse_expression(cursor), cel::parse_error);
+        cel::parser_detail::token_cursor cursor(input);
+        CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_expression(parser, cursor),
+                        cel::parse_error);
     }
 }
 
@@ -322,8 +327,8 @@ TEST_CASE("independent closure scope isolation restores scopes after success and
             b.just(cel::value::from(7.0));
             return true;
         });
-    lookup.push_scope(
-        [](std::string_view name, cel::dyn_segment& b, std::size_t n, cel::source_span) {
+    cel::parser_detail::lookup_access::push_scope(
+        lookup, [](std::string_view name, cel::dyn_segment& b, std::size_t n, cel::source_span) {
             if (name != "ambient" || n != 0) return false;
             b.just(cel::value::from(3.0));
             return true;
@@ -421,13 +426,16 @@ TEST_CASE(
     "text and token methods reject trailing input inline leaves host token diagnostics are owned") {
     cel::parser parser{cel::op_lookup{}};
     auto input = tokens("1.0+2.0, host");
-    cel::token_cursor cursor(input);
-    auto program = parser.parse_expression(cursor);
-    CHECK(std::get<cel::punctuation>(cursor.current().value).spelling() == ",");
+    cel::parser_detail::token_cursor cursor(input);
+    auto program = cel::parser_detail::parser_access::parse_expression(parser, cursor);
+    CHECK(std::get<cel::parser_detail::punctuation>(cursor.current().value).spelling() == ",");
     cel::raw_stack stack;
     CHECK(program.execute(stack, {}).as<double>() == 3);
-    CHECK_THROWS_AS(parser.parse_tokens(input), cel::parse_error);
-    CHECK(parser.parse_tokens(tokens("(1.0,2.0).1")).execute(stack, {}).as<double>() == 2);
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, input),
+                    cel::parse_error);
+    CHECK(cel::parser_detail::parser_access::parse_tokens(parser, tokens("(1.0,2.0).1"))
+              .execute(stack, {})
+              .as<double>() == 2);
     error_at(parser, "1.0 2.0", cel::error_category::malformed_input, {4, 7});
     error_at(parser, "[1.0,]", cel::error_category::malformed_input, {5, 6});
     error_at(parser, "(1.0]", cel::error_category::delimiter_error, {4, 5});
@@ -439,21 +447,21 @@ TEST_CASE(
                     std::pair{"[[]:[bool]]:([[f64]])   , host", cel::source_span{0, 21}}}) {
         CAPTURE(std::string_view(text));
         const auto annotated = tokens(text);
-        cel::token_cursor prefix(annotated);
+        cel::parser_detail::token_cursor prefix(annotated);
         try {
-            (void)parser.parse_expression(prefix);
+            (void)cel::parser_detail::parser_access::parse_expression(parser, prefix);
             FAIL("invalid annotation accepted");
         } catch (const cel::parse_error& error) {
             CHECK(error.category() == cel::error_category::type_error);
             CHECK(error.span() == expected);
         }
-        CHECK(std::get<cel::punctuation>(prefix.current().value).spelling() == ",");
+        CHECK(std::get<cel::parser_detail::punctuation>(prefix.current().value).spelling() == ",");
     }
-    auto invalid = std::array{cel::token{
+    auto invalid = std::array{cel::parser_detail::token{
         {20, 21},
         cel::parse_error(cel::error_category::unsupported_literal, {20, 21}, "producer")}};
     try {
-        (void)parser.parse_tokens(invalid);
+        (void)cel::parser_detail::parser_access::parse_tokens(parser, invalid);
         FAIL("producer diagnostic ignored");
     } catch (const cel::parse_error& error) {
         CHECK(error.category() == cel::error_category::unsupported_literal);
@@ -461,27 +469,48 @@ TEST_CASE(
         CHECK(std::string(error.what()) == "producer");
     }
     const auto malformed = std::array{
-        cel::token{{10, 11}, cel::open_delimiter{cel::delimiter::parenthesis}},
-        cel::token{{11, 14}, cel::numeric_literal{1, "1.0", "", cel::numeric_form::decimal}},
-        cel::token{{14, 15}, cel::close_delimiter{cel::delimiter::bracket}}};
-    CHECK_THROWS_AS(parser.parse_tokens(malformed), cel::parse_error);
-    const auto invisible =
-        std::array{cel::token{{0, 0}, cel::open_delimiter{cel::delimiter::none}},
-                   cel::token{{0, 0}, cel::close_delimiter{cel::delimiter::none}}};
-    CHECK_THROWS_AS(parser.parse_tokens(invisible), cel::parse_error);
+        cel::parser_detail::token{
+            {10, 11},
+            cel::parser_detail::open_delimiter{cel::parser_detail::delimiter::parenthesis}},
+        cel::parser_detail::token{{11, 14},
+                                  cel::parser_detail::numeric_literal{
+                                      1, "1.0", "", cel::parser_detail::numeric_form::decimal}},
+        cel::parser_detail::token{
+            {14, 15}, cel::parser_detail::close_delimiter{cel::parser_detail::delimiter::bracket}}};
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, malformed),
+                    cel::parse_error);
+    const auto invisible = std::array{
+        cel::parser_detail::token{
+            {0, 0}, cel::parser_detail::open_delimiter{cel::parser_detail::delimiter::none}},
+        cel::parser_detail::token{
+            {0, 0}, cel::parser_detail::close_delimiter{cel::parser_detail::delimiter::none}}};
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, invisible),
+                    cel::parse_error);
     auto host_close = tokens("1.0+2.0");
-    host_close.back() = {{7, 8}, cel::close_delimiter{cel::delimiter::brace}};
-    cel::token_cursor host(host_close);
-    CHECK(parser.parse_expression(host).execute(stack, {}).as<double>() == 3);
-    CHECK(std::holds_alternative<cel::close_delimiter>(host.current().value));
-    CHECK_THROWS_AS(parser.parse_tokens(host_close), cel::parse_error);
+    host_close.back() = {{7, 8},
+                         cel::parser_detail::close_delimiter{cel::parser_detail::delimiter::brace}};
+    cel::parser_detail::token_cursor host(host_close);
+    CHECK(cel::parser_detail::parser_access::parse_expression(parser, host)
+              .execute(stack, {})
+              .as<double>() == 3);
+    CHECK(std::holds_alternative<cel::parser_detail::close_delimiter>(host.current().value));
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, host_close),
+                    cel::parse_error);
     const auto terminal = std::array{
-        cel::token{{0, 3}, cel::numeric_literal{1, "1.0", "", cel::numeric_form::decimal}},
-        cel::token{{3, 3}, cel::end_token{}}, cel::token{{4, 5}, cel::identifier{"ignored"}}};
-    CHECK(parser.parse_tokens(terminal).execute(stack, {}).as<double>() == 1);
-    const auto external_suffix = std::array{
-        cel::token{{0, 4}, cel::numeric_literal{1, "1i32", "i32", cel::numeric_form::integer}}};
-    CHECK_THROWS_AS(parser.parse_tokens(external_suffix), cel::parse_error);
+        cel::parser_detail::token{{0, 3},
+                                  cel::parser_detail::numeric_literal{
+                                      1, "1.0", "", cel::parser_detail::numeric_form::decimal}},
+        cel::parser_detail::token{{3, 3}, cel::parser_detail::end_token{}},
+        cel::parser_detail::token{{4, 5}, cel::parser_detail::identifier{"ignored"}}};
+    CHECK(cel::parser_detail::parser_access::parse_tokens(parser, terminal)
+              .execute(stack, {})
+              .as<double>() == 1);
+    const auto external_suffix = std::array{cel::parser_detail::token{
+        {0, 4},
+        cel::parser_detail::numeric_literal{1, "1i32", "i32",
+                                            cel::parser_detail::numeric_form::integer}}};
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, external_suffix),
+                    cel::parse_error);
 }
 
 TEST_CASE("recursive input has source resource diagnostics flat chains remain iterative") {

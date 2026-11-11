@@ -1,10 +1,11 @@
 # CEL parser library
 
-This C++20 library gives CEL library developers owned tokens, byte-located
-diagnostics, forward-only traversal, complete type parsing, checked operation
-lookup, and retained CEL expression compilation. You can register client types
-and callbacks, compile source once, and execute cached code after the parser
-dies. Separate test tooling compares retained contracts with public Rust interfaces.
+This C++20 library compiles UTF-8 `std::string_view` expressions into owned programs
+for repeated execution on a caller-owned stack. You can register client types
+and callbacks and extract owning or typed results after the parser dies.
+Diagnostics identify UTF-8 byte spans. Lexing, token streams, standalone type
+parsing, and compiler scope management are implementation details.
+Separate test tooling compares retained contracts with public Rust interfaces.
 JSON decoding remains your application's responsibility.
 
 ## Language subset
@@ -71,22 +72,20 @@ the installation prefix through `CMAKE_PREFIX_PATH`. The parser exports its
 public `cel::runtime` dependency and resolves it with `find_dependency`.
 Its exported configuration contains no personal or sibling paths.
 
-Use `<cel/parser.hpp>` for tokens and traversal, `<cel/parser/lookup.hpp>` for
-lookup and types, and `<cel/parser/compiler.hpp>` for expression compilation.
-The explicit full-stack umbrella is `<cel/parser/all.hpp>`.
+Use `<cel/parser.hpp>` for compilation and diagnostics.
+Extension libraries can include `<cel/parser/lookup.hpp>` for registration
+without importing the compiler.
 
-Read one scalar with the public header:
+Compile and execute one scalar with the public header:
 
 ```cpp
 #include <cel/parser.hpp>
 
 int main() try {
-    cel::lex_lexer lexer("1.0f64");
-    if (std::get<cel::numeric_literal>(lexer.current().value).value != 1.0)
-        return 1;
-    lexer.advance();
-    return std::holds_alternative<cel::end_token>(lexer.current().value)
-               ? 0 : 1;
+    cel::parser compiler(cel::op_lookup{});
+    auto program = compiler.parse_str("1.0f64").prepare<double>();
+    cel::raw_stack stack;
+    return program.call(stack) == 1.0 ? 0 : 1;
 } catch (const std::exception&) {
     return 1;
 }
@@ -94,23 +93,22 @@ int main() try {
 
 The installed-consumer CTest compiles and runs this interface without checkout
 include paths. It also executes cached callbacks, ordinary client-function
-values, nested composites, and complete type parsing through installed headers.
+values, and nested composites through installed headers.
 
 Compile a callback through checked lookup:
 
 ```cpp
-#include <cel/parser/lookup.hpp>
+#include <cel/parser.hpp>
 
 int main() try {
-    cel::dyn_segment builder;
-    {
+    auto program = [] {
         cel::op_lookup lookup;
         lookup.register_op<double, double>(
             "twice", [](double x) { return x * 2.0; });
-        builder.just(cel::value::from(3.0));
-        lookup.apply("twice", builder, 1, {0, 5});
-    }
-    auto prepared = std::move(builder).finish().prepare<double>();
+        cel::parser compiler(std::move(lookup));
+        return compiler.parse_str("3.0.twice()");
+    }();
+    auto prepared = program.prepare<double>();
     cel::raw_stack stack;
     return prepared.call(stack) == 6.0 ? 0 : 1;
 } catch (const std::exception&) {
@@ -126,7 +124,7 @@ remain your lifetime responsibility.
 Compile decoded text and execute the cached program on your reusable stack:
 
 ```cpp
-#include <cel/parser/all.hpp>
+#include <cel/parser.hpp>
 
 int main() try {
     auto code = [] {
@@ -140,19 +138,14 @@ int main() try {
 }
 ```
 
-The result is 7.0; the compiler has already been destroyed. Text parsing uses
-the owned lexer directly, not a second token vector. `parse_tokens` compiles
-a complete borrowed flattened stream; `parse_expression(token_cursor&)`
-compiles a prefix and leaves its following host token. Full methods reject
-trailing input. EOF/error tokens terminate an external producer stream.
+The result is 7.0; the compiler has already been destroyed. `parse_str` rejects
+trailing input and retains no borrow of the source.
 Programs retain values, descriptors, and emitted runtime callbacks, not references
 inside client captures. Custom scopes and emitters must retain any state their
 emitted code needs. Compilation invokes scopes and emitters, not the emitted
 runtime operations.
 
-CEL groups opened inside an expression must close with the same visible kind.
-Inline parsing doesn't consume or validate its surrounding host group;
-external invisible groups are unsupported expression syntax. Syntax/type
+CEL groups opened inside an expression must close with the same visible kind. Syntax/type
 errors carry owned byte spans. Selected client-emitter and execution exceptions
 propagate without becoming syntax diagnostics. Recursive expression nesting is
 limited to 128 active expression/conditional productions; flat operator,
@@ -191,9 +184,8 @@ separate ownership/staging costs. See [validation and measurement](docs/validati
 
 ## Reference and provenance
 
-See the [lexical contract](docs/lexical-contract.md) for tokens, source ownership,
-errors, and adapter differences. See the [lookup and type contract](docs/lookup-contract.md)
-for registration, scope selectors, callable names, and type syntax. See the
+See the [lookup and type contract](docs/lookup-contract.md)
+for registration, callable names, and type annotation syntax. See the
 [built-in census](docs/builtin-census.md) for retained and rejected signatures.
 See the [expression grammar](docs/expression-grammar.md) for precedence,
 aggregate annotations, explicit closures, and ownership/diagnostic contracts.

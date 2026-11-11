@@ -1,7 +1,7 @@
 # Lookup and complete types {#lookup_contract}
 
-This reference helps library clients register owned operations and parse complete
-types through `cel::parser`. See the [expression grammar](expression-grammar.md)
+This reference helps library clients register owned operations and use complete
+type annotations through `cel::parser`. See the [expression grammar](expression-grammar.md)
 for expression syntax and compilation.
 
 `op_lookup` supplies intrinsic operators, identity casts, and full-range
@@ -76,7 +76,7 @@ and preserve any lower prefix. Zero-explicit-argument calls skip direct value
 scopes because those scopes cannot distinguish a binding from a zero-argument
 operation.
 
-`lookup_selector::member` counts the receiver plus explicit arguments. It uses
+Member expressions count the receiver plus explicit arguments. They use
 operation-only dispatch, not bare function lookup or callable invocation.
 Scopes may handle nonzero-arity direct operations before registrations.
 Canonical named record projection follows custom operation, structural, and
@@ -94,15 +94,10 @@ typed member-operation path; do not infer native layouts from member names.
 A declined scope callback must leave emitted instructions and operands unchanged.
 Scope callbacks and descriptor emitters can query the lookup, but they must not
 modify its registrations or scope sets during resolution.
-`push_scope` owns a transient scope. `push_library_scope` owns a persistent
-scope and requires no active transient scopes. `pop_scope` requires an active
-transient scope. `isolate_scopes` transfers transient scopes out;
-`restore_scopes` replaces the current transient set with the saved set.
-Persistent library scopes and registrations remain available throughout.
-`scope_selection::library_only` selects the global library environment without
-transferring scopes. Resolve closure parameters separately before this lookup.
-Alternatively, isolate enclosing scopes, push closure-local parameter scopes,
-and select `all` for the independent body.
+`push_library_scope` owns a persistent library resolver. The compiler manages
+transient parameter scopes and isolates enclosing parameters for independent
+closure bodies. Persistent library scopes and registrations remain available
+throughout; transient scope management and dispatch selectors are private.
 
 ## Type grammar
 
@@ -135,17 +130,9 @@ parameters. Results admit any valid complete type, including client leaves,
 records, arrays containing callables, and further callable signatures.
 Parsing a callable signature doesn't install code ownership.
 Cast syntax consumes one identifier rather than this complete type production.
-`apply_cast` recognizes only `bool` and `f64`, not registered aliases.
+Casts recognize only `bool` and `f64`, not registered aliases.
 
-The token-cursor and owned-text-lexer overloads consume one prefix and leave
-its following host token. The returned descriptor owns its metadata and survives
-the cursor, tokens, source, and lookup. Parsing never rewinds; a failed parse may
-advance the cursor. The lexer overload doesn't materialize a separate token array.
-The `parsed_span` overloads publish the first consumed token's `begin` through the
-last consumed token's `end` only on success. They exclude surrounding whitespace
-and leave the output span unchanged on failure.
-The `std::span<const token>` overload rejects trailing input before terminal EOF.
-Producer diagnostics retain their category, span, and message. Malformed syntax,
+Standalone type parsing is internal. Malformed annotation syntax,
 unsupported names, and parameter eligibility failures produce `parse_error` with
 source spans.
 At most 128 recursive productions may be active; deeper untrusted input reports

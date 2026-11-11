@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "type.hpp"
 #include <cel/parser/lookup.hpp>
 #include <string>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -7,10 +8,10 @@
 namespace {
 /// Owns tokens collected from the accepted current/advance interface.
 /// Complexity: O(source bytes), O(token payloads and count) storage.
-std::vector<cel::token> tokens(std::string_view source) {
-    cel::lex_lexer lexer(source);
-    std::vector<cel::token> result;
-    while (!std::holds_alternative<cel::end_token>(lexer.current().value)) {
+std::vector<cel::parser_detail::token> tokens(std::string_view source) {
+    cel::parser_detail::lex_lexer lexer(source);
+    std::vector<cel::parser_detail::token> result;
+    while (!std::holds_alternative<cel::parser_detail::end_token>(lexer.current().value)) {
         result.push_back(lexer.current());
         lexer.advance();
     }
@@ -21,7 +22,7 @@ std::vector<cel::token> tokens(std::string_view source) {
 /// Complexity: O(source bytes + complete descriptor construction).
 cel::value_type type(std::string_view source, const cel::op_lookup& lookup) {
     auto input = tokens(source);
-    return cel::parse_type(input, lookup);
+    return cel::parser_detail::parse_type(input, lookup);
 }
 /// Provides a valid client leaf that is not an admitted callable parameter.
 struct client {
@@ -77,14 +78,17 @@ TEST_CASE("Fn parameter admission is recursive while complete results remain unr
 
 TEST_CASE("inline type parsing leaves host token and errors retain exact byte spans") {
     cel::op_lookup lookup;
-    cel::lex_lexer text_cursor("[f64], next");
-    CHECK(
-        cel::parse_type(text_cursor, lookup).element().same_shape(cel::value_type::leaf<double>()));
-    CHECK(std::get<cel::punctuation>(text_cursor.current().value).spelling() == ",");
+    cel::parser_detail::lex_lexer text_cursor("[f64], next");
+    CHECK(cel::parser_detail::parse_type(text_cursor, lookup)
+              .element()
+              .same_shape(cel::value_type::leaf<double>()));
+    CHECK(std::get<cel::parser_detail::punctuation>(text_cursor.current().value).spelling() == ",");
     auto input = tokens("[f64], next");
-    cel::token_cursor cursor(input);
-    CHECK(cel::parse_type(cursor, lookup).element().same_shape(cel::value_type::leaf<double>()));
-    CHECK(std::get<cel::punctuation>(cursor.current().value).spelling() == ",");
+    cel::parser_detail::token_cursor cursor(input);
+    CHECK(cel::parser_detail::parse_type(cursor, lookup)
+              .element()
+              .same_shape(cel::value_type::leaf<double>()));
+    CHECK(std::get<cel::parser_detail::punctuation>(cursor.current().value).spelling() == ",");
     try {
         (void)type("[Unknown]", lookup);
         FAIL("unknown type accepted");
@@ -92,10 +96,10 @@ TEST_CASE("inline type parsing leaves host token and errors retain exact byte sp
         CHECK(error.span() == cel::source_span{1, 8});
     }
 
-    auto invalid = std::array{cel::token{
+    auto invalid = std::array{cel::parser_detail::token{
         {20, 21}, cel::parse_error(cel::error_category::malformed_input, {20, 21}, "producer")}};
     try {
-        (void)cel::parse_type(invalid, lookup);
+        (void)cel::parser_detail::parse_type(invalid, lookup);
         FAIL("producer error accepted");
     } catch (const cel::parse_error& error) {
         CHECK(error.span() == cel::source_span{20, 21});
@@ -115,15 +119,16 @@ TEST_CASE("inline type parsing leaves host token and errors retain exact byte sp
 TEST_CASE("type prefix span output excludes whitespace and publishes only on success") {
     cel::op_lookup lookup;
     cel::source_span parsed{90, 91};
-    cel::lex_lexer source("  Fn((), [f64])   , next");
-    CHECK(cel::parse_type(source, lookup, parsed).result().kind() == cel::type_kind::array);
+    cel::parser_detail::lex_lexer source("  Fn((), [f64])   , next");
+    CHECK(cel::parser_detail::parse_type(source, lookup, parsed).result().kind() ==
+          cel::type_kind::array);
     CHECK(parsed == cel::source_span{2, 15});
-    CHECK(std::get<cel::punctuation>(source.current().value).spelling() == ",");
+    CHECK(std::get<cel::parser_detail::punctuation>(source.current().value).spelling() == ",");
     const auto input = tokens("  [f64]   , next");
-    cel::token_cursor cursor(input);
-    CHECK(cel::parse_type(cursor, lookup, parsed).kind() == cel::type_kind::array);
+    cel::parser_detail::token_cursor cursor(input);
+    CHECK(cel::parser_detail::parse_type(cursor, lookup, parsed).kind() == cel::type_kind::array);
     CHECK(parsed == cel::source_span{2, 7});
-    cel::lex_lexer invalid("[Unknown]");
-    CHECK_THROWS_AS(cel::parse_type(invalid, lookup, parsed), cel::parse_error);
+    cel::parser_detail::lex_lexer invalid("[Unknown]");
+    CHECK_THROWS_AS(cel::parser_detail::parse_type(invalid, lookup, parsed), cel::parse_error);
     CHECK(parsed == cel::source_span{2, 7});
 }

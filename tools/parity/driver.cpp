@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
 #include "driver_support.hpp"
+#include "lookup_access.hpp"
 #include <bit>
 #include <cel/parser/compiler.hpp>
 #include <cmath>
@@ -131,7 +132,8 @@ cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace) {
             return true;
         });
     for (const auto number : {4.0, 5.0})
-        result.push_scope(
+        cel::parser_detail::lookup_access::push_scope(
+            result,
             [number](std::string_view name, cel::dyn_segment& b, std::size_t n, cel::source_span) {
                 if (n != 0) return false;
                 if (name == "othermarker") {
@@ -143,7 +145,8 @@ cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace) {
                 return true;
             });
     if (setup == "unstable_trace_first" || setup == "unstable_trace_second") {
-        result.push_scope(
+        cel::parser_detail::lookup_access::push_scope(
+            result,
             [setup, &trace, calls = std::make_shared<int>(0)](
                 std::string_view name, cel::dyn_segment& b, std::size_t arity, cel::source_span) {
                 if (name != "traceprobe" || arity != 0) return false;
@@ -155,7 +158,8 @@ cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace) {
                 return true;
             });
     }
-    result.push_scope(
+    cel::parser_detail::lookup_access::push_scope(
+        result,
         [](std::string_view name, cel::dyn_segment& b, std::size_t arity, cel::source_span) {
             if (arity != 0) return false;
             if (name == "unexpected_argument") {

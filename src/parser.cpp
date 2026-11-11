@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
-#include <cel/parser.hpp>
+#include "lexer.hpp"
 
 #include "unicode_data.hpp"
 
@@ -12,7 +12,7 @@
 #include <optional>
 #include <utility>
 
-namespace cel {
+namespace cel::parser_detail {
 namespace {
 
 static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53 &&
@@ -199,11 +199,6 @@ std::optional<delimiter> delimiter_kind(char ch) noexcept {
     }
 }
 } // namespace
-
-parse_error::parse_error(error_category category, source_span span, std::string message) :
-    std::runtime_error(std::move(message)), category_(category), span_(span) {
-    assert(span.begin <= span.end);
-}
 
 punctuation::punctuation(std::string_view spelling) : size_(spelling.size()) {
     if (spelling.empty() || spelling.size() > bytes_.size() ||
@@ -554,5 +549,12 @@ void lex_lexer::read_next() {
         fail(error_category::delimiter_error, delimiters_.back().second, "unclosed delimiter");
     } else
         current_ = {{position_, position_}, end_token{}};
+}
+} // namespace cel::parser_detail
+
+namespace cel {
+parse_error::parse_error(error_category category, source_span span, std::string message) :
+    std::runtime_error(std::move(message)), category_(category), span_(span) {
+    assert(span.begin <= span.end);
 }
 } // namespace cel

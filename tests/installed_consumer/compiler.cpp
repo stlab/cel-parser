@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
-#include <cel/parser/all.hpp>
+#include <cel/parser.hpp>
 #include <memory>
 
 /// Compiles and receives nested callable/composite results with only installed public headers.

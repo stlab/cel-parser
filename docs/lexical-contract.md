@@ -1,5 +1,8 @@
 # Lexical contract
 
+This maintainer reference describes `cel::parser_detail` facilities declared in
+`src/lexer.hpp`. Tokens, cursors, and lexing are not installed client interfaces.
+
 Use this reference to implement a CEL token consumer or another flattened
 producer. The text adapter consumes decoded CEL text, not JSON or Rust macro
 token trees.

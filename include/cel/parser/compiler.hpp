@@ -5,12 +5,15 @@
 
 /// \file
 /// Provides CEL expression compilation for clients with an owned operation registry.
-/// See `<cel/parser/lookup.hpp>` for registrations and standalone type parsing.
+/// See `<cel/parser/lookup.hpp>` for library registrations.
 
 namespace cel {
+namespace parser_detail {
+struct parser_access;
+} // namespace parser_detail
 /// Owns lookup state and compiles CEL expressions into reusable checked programs.
 /// Each successful call returns a program owning its values, descriptors, and emitted runtime
-/// callbacks; the source, external tokens, and parser need not survive the program.
+/// callbacks; the source and parser need not survive the program.
 /// References inside client captures remain client-owned and must outlive their uses.
 /// Custom scope callbacks and emitters follow their own code-retention contracts.
 /// Precondition: clients provide exclusive access across threads, including during emitters.
@@ -23,12 +26,13 @@ namespace cel {
 /// \code{.cpp}
 /// auto code = [] {
 ///     cel::parser compiler(cel::op_lookup{});
-///     return compiler.parse_str("1 + 2");
+///     return compiler.parse_str("1.0 + 2.0");
 /// }();
 /// cel::raw_stack stack;
 /// double result = code.prepare<double>().call(stack); // 3.0
 /// \endcode
 class parser {
+    friend struct parser_detail::parser_access;
     op_lookup lookup_;
     bool active_ = false;
 
@@ -50,35 +54,13 @@ public:
     /// lookup_error, delimiter_error, or resource_limit as classified by error_category.
     /// Trailing input is malformed_input. More than 128 simultaneously active expression and
     /// conditional productions is resource_limit; iterative flat chains do not consume this
-    /// nesting allowance. Type annotations have the separate parse_type production limit.
-    /// Producer errors retain their category, message, and byte span.
+    /// nesting allowance. Type annotations have a separate limit of 128 active productions.
     /// Recursive entry throws std::logic_error as documented by this class.
     /// Client-emitter exceptions and allocation failures propagate without relabeling.
     /// Complexity: O(lexer traversal + emitted operations + lookup/type/structural metadata work)
     /// time, O(source bytes + code/captures + compilation metadata + bounded nesting) storage.
     /// Example: `auto code = p.parse_str("(|| 7.0)()");`.
     compiled_segment parse_str(std::string_view source);
-    /// Compiles one complete external flattened stream with the same productions and errors.
-    /// Borrows tokens unchanged for this call only.
-    /// Follows parse_str's grammar and limit contracts.
-    /// Terminal EOF/error follows token_cursor's contract: later supplied tokens are ignored.
-    /// Validates consumed visible delimiter pairs; invisible groups are unsupported syntax.
-    /// Returns an owned program; tokens/source need not survive successful compilation.
-    /// No complete token copy is made.
-    /// Complexity: O(consumed tokens + emitted operations + lookup/type/structural metadata work)
-    /// time, O(code/captures + compilation metadata + bounded nesting) storage.
-    /// Example: `auto code = p.parse_tokens(tokens);`.
-    compiled_segment parse_tokens(std::span<const token> tokens);
-    /// Compiles one expression prefix and leaves its following host token unconsumed.
-    /// A host close delimiter may follow a complete prefix; this method does not consume or
-    /// validate a surrounding host group. Groups opened by CEL must close with their own kind.
-    /// Failed parsing may advance the borrowed cursor; it does not rewind or speculate.
-    /// Borrows cursor for this call. Follows parse_tokens' type, producer, ownership,
-    /// exclusivity, and resource contracts, but does not require terminal end.
-    /// Complexity: O(consumed tokens + emitted operations + lookup/type/structural metadata work)
-    /// time, O(code/captures + compilation metadata + bounded nesting) storage.
-    /// Example: `token_cursor c(tokens); auto code = p.parse_expression(c);`.
-    compiled_segment parse_expression(token_cursor& cursor);
 };
 // [knowledge] Preserve current-token LL(1) compilation: no cursor cloning, speculation,
 // checkpoints, or multi-token lookahead. Character composition belongs to the lexer.

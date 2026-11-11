@@ -13,11 +13,13 @@ defines the retained bool/f64 signatures.
 
 ## Production inventory
 
-Every row below is implemented in `src/compiler.cpp` through public checked
-runtime and lookup interfaces. The contract-test map identifies its evidence.
+Every row below is implemented in `src/compiler.cpp` through checked runtime
+builders and private lookup dispatch. Token and prefix compilation entry points
+used by the contract tests are internal, not installed client interfaces.
+The contract-test map identifies its evidence.
 The following productions choose alternatives from the current token:
 
-| Production, loose to tight | Syntax and selector | Rust consumer | Public C++ emission |
+| Production, loose to tight | Syntax and selector | Rust consumer | C++ emission |
 | --- | --- | --- | --- |
 | `expression` | Leading `\|\|` or `\|` selects closure; otherwise range | `lib.rs:1308–1319` | Independent body, `push_closure` |
 | `range_expression` | `or [ (".." [or]) \| ("..=" or) ]`, or leading `.. [or]`, or `..= or`; one range only | `lib.rs:1420–1516` | Lookup `range`, `range_inclusive`, `range_from`, `range_to`, `range_to_inclusive`, `range_full` |
@@ -53,7 +55,7 @@ tokens are malformed endpoints, not an absent endpoint followed by a host token.
 
 Rust ordinary and member expression dispatch select all eligible scopes
 (`parser_context.rs:827–857`). Ordinary `"()"` includes the callee/marker;
-members are direct receiver operations. `library_only` remains a lookup API
+members are direct receiver operations. `library_only` is an internal lookup
 selector, not invented expression syntax. An independent closure temporarily
 isolates every enclosing transient scope and installs only its own positional
 parameters (`lib.rs:2470–2488`). Persistent libraries/registrations remain
@@ -132,7 +134,7 @@ and incomplete schemas identify the complete record expression. Other structural
 validation identifies the complete expression interval, and non-array annotation
 errors identify the complete parsed type interval. P4 corrects the original Rust
 selector conversion span loss at `1516e45f0799927043352ffeeb2b13d58ac66526`.
-The public span-output `parse_type` overloads provide exact consumed intervals,
+The internal span-output `parse_type` overloads provide exact consumed intervals,
 excluding following whitespace/host tokens. Selected client-emitter failures
 are not caught by structural diagnostic translation. Evaluation uses frozen
 runtime code, never a retained parser or an expression AST interpreter.

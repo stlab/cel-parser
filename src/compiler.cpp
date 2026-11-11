@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "compiler.hpp"
+#include "lookup_access.hpp"
+#include "type.hpp"
 #include <algorithm>
 #include <cassert>
-#include <cel/parser/compiler.hpp>
 #include <charconv>
 #include <iterator>
 #include <limits>
@@ -9,6 +11,7 @@
 #include <unordered_set>
 
 namespace cel {
+using namespace parser_detail;
 namespace {
 /// Holds exclusive access to a parser until compilation exits, including on exceptions.
 class compilation_guard {
@@ -31,10 +34,11 @@ class closure_scopes {
 
 public:
     /// Transfers the enclosing transient scopes out before installing formals.
-    explicit closure_scopes(op_lookup& lookup) : lookup_(lookup), saved_(lookup.isolate_scopes()) {}
+    explicit closure_scopes(op_lookup& lookup) :
+        lookup_(lookup), saved_(lookup_access::isolate_scopes(lookup)) {}
     /// Retires formals and restores the original scope order without allocation.
     /// Complexity: O(retired formal names and metadata).
-    ~closure_scopes() { lookup_.restore_scopes(std::move(saved_)); }
+    ~closure_scopes() { lookup_access::restore_scopes(lookup_, std::move(saved_)); }
 };
 
 /// Restores a temporary condition-header restriction on every exit.
@@ -205,10 +209,10 @@ class expression_compiler {
             advance();
             if (inclusive || starts_or()) {
                 binary(builder, 0);
-                lookup_.apply(inclusive ? "range_to_inclusive" : "range_to", builder, 1,
-                              span_from(start));
+                lookup_access::apply(lookup_, inclusive ? "range_to_inclusive" : "range_to",
+                                     builder, 1, span_from(start));
             } else {
-                lookup_.apply("range_full", builder, 0, span_from(start));
+                lookup_access::apply(lookup_, "range_full", builder, 0, span_from(start));
             }
             return;
         }
@@ -218,10 +222,10 @@ class expression_compiler {
             advance();
             if (inclusive || starts_or()) {
                 binary(builder, 0);
-                lookup_.apply(inclusive ? "range_inclusive" : "range", builder, 2,
-                              span_from(start));
+                lookup_access::apply(lookup_, inclusive ? "range_inclusive" : "range", builder, 2,
+                                     span_from(start));
             } else {
-                lookup_.apply("range_from", builder, 1, span_from(start));
+                lookup_access::apply(lookup_, "range_from", builder, 1, span_from(start));
             }
         }
     }
@@ -286,7 +290,7 @@ class expression_compiler {
             });
         } else {
             binary(builder, level + 1);
-            lookup_.apply(op.spelling(), builder, 2, span_from(start));
+            lookup_access::apply(lookup_, op.spelling(), builder, 2, span_from(start));
         }
     }
     /// cast_expression = unary_expression { "as" identifier }.
@@ -297,7 +301,7 @@ class expression_compiler {
         while (keyword_is("as")) {
             advance();
             const auto target = expect_name();
-            lookup_.apply_cast(target, builder, span_from(start));
+            lookup_access::apply_cast(lookup_, target, builder, span_from(start));
         }
     }
     /// unary_expression = ("-" | "!") unary_expression | postfix_expression.
@@ -311,7 +315,7 @@ class expression_compiler {
         }
         postfix(builder);
         for (auto i = prefixes.rbegin(); i != prefixes.rend(); ++i)
-            lookup_.apply(i->first.spelling(), builder, 1, span_from(i->second));
+            lookup_access::apply(lookup_, i->first.spelling(), builder, 1, span_from(i->second));
     }
     /// arguments = "(" [ expression { "," expression } ] ")".
     /// Returns the explicit argument count; a consumed comma always requires another expression.
@@ -383,15 +387,15 @@ class expression_compiler {
         while (true) {
             if (opening(delimiter::parenthesis)) {
                 const auto count = arguments(builder);
-                lookup_.apply("()", builder, increment(count), span_from(start));
+                lookup_access::apply(lookup_, "()", builder, increment(count), span_from(start));
             } else if (punctuation_is(".")) {
                 advance();
                 if (std::holds_alternative<identifier>(current().value)) {
                     const auto name_span = current().span;
                     const auto name = expect_name();
                     const auto count = opening(delimiter::parenthesis) ? arguments(builder) : 0;
-                    lookup_.apply(name, builder, increment(count), name_span,
-                                  lookup_selector::member);
+                    lookup_access::apply(lookup_, name, builder, increment(count), name_span,
+                                         lookup_selector::member);
                 } else {
                     tuple_selector(builder, start);
                 }
@@ -426,7 +430,7 @@ class expression_compiler {
             else if (!no_record_ && opening(delimiter::brace))
                 record(builder, name, start);
             else
-                lookup_.apply(name, builder, 0, start);
+                lookup_access::apply(lookup_, name, builder, 0, start);
         } else if (opening(delimiter::parenthesis))
             tuple(builder);
         else if (opening(delimiter::bracket))
@@ -586,15 +590,15 @@ class expression_compiler {
         dyn_segment body;
         {
             closure_scopes scopes(lookup_);
-            lookup_.push_scope([formals = std::move(formals)](std::string_view name,
-                                                              dyn_segment& code, std::size_t arity,
-                                                              source_span) {
-                if (arity != 0) return false;
-                const auto found = formals.find(name);
-                if (found == formals.end()) return false;
-                code.push_argument(found->second.first, found->second.second);
-                return true;
-            });
+            lookup_access::push_scope(
+                lookup_, [formals = std::move(formals)](std::string_view name, dyn_segment& code,
+                                                        std::size_t arity, source_span) {
+                    if (arity != 0) return false;
+                    const auto found = formals.find(name);
+                    if (found == formals.end()) return false;
+                    code.push_argument(found->second.first, found->second.second);
+                    return true;
+                });
             expression(body);
         }
         structural(span_from(start),
@@ -658,15 +662,17 @@ compiled_segment parser::parse_str(std::string_view source) {
 }
 /// Compiles a complete external stream without copying its token payloads.
 /// Complexity: O(tokens + emitted operations + lookup/type/structural metadata work).
-compiled_segment parser::parse_tokens(std::span<const token> tokens) {
-    compilation_guard exclusive(active_);
+compiled_segment parser_detail::parser_access::parse_tokens(parser& compiler,
+                                                            std::span<const token> tokens) {
+    compilation_guard exclusive(compiler.active_);
     token_cursor cursor(tokens);
-    return expression_compiler(cursor, lookup_).compile(true);
+    return expression_compiler(cursor, compiler.lookup_).compile(true);
 }
 /// Compiles one borrowed prefix without consuming its following host token.
 /// Complexity: O(tokens + emitted operations + lookup/type/structural metadata work).
-compiled_segment parser::parse_expression(token_cursor& cursor) {
-    compilation_guard exclusive(active_);
-    return expression_compiler(cursor, lookup_).compile(false);
+compiled_segment parser_detail::parser_access::parse_expression(parser& compiler,
+                                                                token_cursor& cursor) {
+    compilation_guard exclusive(compiler.active_);
+    return expression_compiler(cursor, compiler.lookup_).compile(false);
 }
 } // namespace cel

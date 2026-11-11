@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "lookup_access.hpp"
 #include <cel/parser/lookup.hpp>
 #include <cfenv>
 #include <cmath>
@@ -53,7 +54,7 @@ template <class R, class... A>
 R operation(const cel::op_lookup& lookup, std::string_view name, A... arguments) {
     cel::dyn_segment builder;
     (builder.just(cel::value::from(arguments)), ...);
-    lookup.apply(name, builder, sizeof...(A), {10, 14});
+    cel::parser_detail::lookup_access::apply(lookup, name, builder, sizeof...(A), {10, 14});
     return evaluate<R>(std::move(builder));
 }
 } // namespace
@@ -97,9 +98,9 @@ TEST_CASE("native extension registrations preserve nested structural descriptors
     cel::dyn_segment builder;
     builder.just(cel::value::from(true));
     const auto prefix = builder.snapshot();
-    lookup.apply("measure_named", builder, 0, {});
+    cel::parser_detail::lookup_access::apply(lookup, "measure_named", builder, 0, {});
     builder.just(cel::value::from(first{9.0}));
-    lookup.apply("()", builder, 2, {});
+    cel::parser_detail::lookup_access::apply(lookup, "()", builder, 2, {});
     CHECK(builder.origin_below(1) == prefix);
     builder.make_tuple(2, {});
     const auto result = evaluate<std::tuple<bool, double>>(std::move(builder));
@@ -121,7 +122,7 @@ TEST_CASE("exact registrations preserve overload identity and callback lifetime"
         lookup.register_op<double, second>("measure", [](second x) { return x.number * 2.0; });
         CHECK(operation<double>(lookup, "measure", second{4.0}) == 8.0);
         compiled.just(cel::value::from(first{4.0}));
-        lookup.apply("measure", compiled, 1, {1, 8});
+        cel::parser_detail::lookup_access::apply(lookup, "measure", compiled, 1, {1, 8});
         CHECK_THROWS_AS((lookup.register_op<bool, first>("measure", [](first) { return true; })),
                         std::invalid_argument);
         CHECK_THROWS_AS(lookup.register_type<double>("First"), std::invalid_argument);
@@ -140,23 +141,25 @@ TEST_CASE("scopes are LIFO and isolated bodies retain libraries and registration
             b.just(cel::value::from(2.0));
             return true;
         });
-    lookup.push_scope([](std::string_view n, cel::dyn_segment& b, std::size_t a, cel::source_span) {
-        if (n != "constant" || a != 0) return false;
-        b.just(cel::value::from(3.0));
-        return true;
-    });
-    lookup.push_scope([](std::string_view n, cel::dyn_segment& b, std::size_t a, cel::source_span) {
-        if (n != "constant" || a != 0) return false;
-        b.just(cel::value::from(4.0));
-        return true;
-    });
+    cel::parser_detail::lookup_access::push_scope(
+        lookup, [](std::string_view n, cel::dyn_segment& b, std::size_t a, cel::source_span) {
+            if (n != "constant" || a != 0) return false;
+            b.just(cel::value::from(3.0));
+            return true;
+        });
+    cel::parser_detail::lookup_access::push_scope(
+        lookup, [](std::string_view n, cel::dyn_segment& b, std::size_t a, cel::source_span) {
+            if (n != "constant" || a != 0) return false;
+            b.just(cel::value::from(4.0));
+            return true;
+        });
     CHECK(operation<double>(lookup, "constant") == 4.0);
-    lookup.pop_scope();
+    cel::parser_detail::lookup_access::pop_scope(lookup);
     CHECK(operation<double>(lookup, "constant") == 3.0);
-    auto saved = lookup.isolate_scopes();
+    auto saved = cel::parser_detail::lookup_access::isolate_scopes(lookup);
     CHECK(operation<double>(lookup, "constant") == 1.0);
     CHECK(operation<double>(lookup, "library") == 2.0);
-    lookup.restore_scopes(std::move(saved));
+    cel::parser_detail::lookup_access::restore_scopes(lookup, std::move(saved));
     CHECK(operation<double>(lookup, "constant") == 3.0);
 }
 
@@ -171,18 +174,20 @@ TEST_CASE("ordinary named markers retain first binding and direct member selecto
     cel::dyn_segment secondary;
     secondary.just(cel::value::from(other_marker{}));
     secondary.just(cel::value::from(4.0));
-    CHECK_THROWS_AS(lookup.apply("()", secondary, 2, {}), cel::parse_error);
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(lookup, "()", secondary, 2, {}),
+                    cel::parse_error);
     cel::dyn_segment builder;
     builder.just(cel::value::from(true)); // Preserve a prefix beneath marker and arguments.
-    lookup.apply("convert", builder, 0, {});
+    cel::parser_detail::lookup_access::apply(lookup, "convert", builder, 0, {});
     CHECK(builder.operand_types(1)[0].same_shape(cel::value_type::leaf<named_function>()));
     builder.just(cel::value::from(4.0));
-    lookup.apply("()", builder, 2, {});
+    cel::parser_detail::lookup_access::apply(lookup, "()", builder, 2, {});
     builder.make_tuple(2, {});
     CHECK(evaluate<std::tuple<bool, double>>(std::move(builder)) == std::tuple{true, 5.0});
     cel::dyn_segment member;
     member.just(cel::value::from(5.0));
-    lookup.apply("convert", member, 1, {}, cel::lookup_selector::member);
+    cel::parser_detail::lookup_access::apply(lookup, "convert", member, 1, {},
+                                             cel::parser_detail::lookup_selector::member);
     CHECK(evaluate<double>(std::move(member)) == 6.0);
 }
 
@@ -195,7 +200,8 @@ TEST_CASE("declined overloads never execute and selected emitter failures propag
     });
     cel::dyn_segment builder;
     builder.just(cel::value::from(second{2.0}));
-    CHECK_THROWS_AS(lookup.apply("fail", builder, 1, {2, 6}), cel::parse_error);
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(lookup, "fail", builder, 1, {2, 6}),
+                    cel::parse_error);
     CHECK(invoked == 0);
     CHECK(evaluate<second>(std::move(builder)).number == 2.0);
     lookup.register_operation(
@@ -228,7 +234,8 @@ TEST_CASE("nominal records and arbitrary nested registration use public runtime 
         [](cel::dyn_segment& b, cel::source_span) { b.project_record("payload"); });
     cel::dyn_segment builder;
     builder.just(cel::value::record(schema, std::array{cel::value::from(input)}));
-    lookup.apply("payload", builder, 1, {}, cel::lookup_selector::member);
+    cel::parser_detail::lookup_access::apply(lookup, "payload", builder, 1, {},
+                                             cel::parser_detail::lookup_selector::member);
     CHECK(evaluate<nested>(std::move(builder)) == input);
     const auto different_name = cel::value_type::record("OtherRecord", std::array{field});
     const auto alternate_payload = cel::value::from(std::vector<std::vector<bool>>{{true}});
@@ -240,7 +247,8 @@ TEST_CASE("nominal records and arbitrary nested registration use public runtime 
          }) {
         cel::dyn_segment wrong;
         wrong.just(record);
-        CHECK_THROWS_AS(lookup.apply("payload", wrong, 1, {}), cel::parse_error);
+        CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(lookup, "payload", wrong, 1, {}),
+                        cel::parse_error);
         const auto operands = wrong.operand_types(1);
         const bool retained = operands.size() == 1 && operands[0].compatible_with(record.type());
         CHECK(retained);
@@ -299,7 +307,7 @@ TEST_CASE("owned names schemas and scope captures survive registration input des
         std::string name = "owned";
         lookup.register_op<double>(name,
                                    [state = std::make_unique<double>(8.0)] { return *state; });
-        lookup.apply(name, move_only_program, 0, {});
+        cel::parser_detail::lookup_access::apply(lookup, name, move_only_program, 0, {});
         name.assign("changed");
         CHECK(operation<double>(lookup, "owned") == 8.0);
         std::array fields{cel::record_field{"field", cel::value_type::leaf<double>()}};
@@ -308,13 +316,14 @@ TEST_CASE("owned names schemas and scope captures survive registration input des
         schema = lookup.find_type("Owner");
         auto state = std::make_unique<double>(9.0);
         auto captured = std::shared_ptr<double>(std::move(state));
-        lookup.push_scope(
+        cel::parser_detail::lookup_access::push_scope(
+            lookup,
             [captured](std::string_view n, cel::dyn_segment& b, std::size_t a, cel::source_span) {
                 if (n != "scoped" || a != 0) return false;
                 b.op<double>([captured] { return *captured; });
                 return true;
             });
-        lookup.apply("scoped", builder, 0, {});
+        cel::parser_detail::lookup_access::apply(lookup, "scoped", builder, 0, {});
     }
     if (!schema) throw std::logic_error("owned record missing");
     CHECK(schema->field_names()[0] == "field");
@@ -327,7 +336,8 @@ TEST_CASE("owned names schemas and scope captures survive registration input des
     CHECK_THROWS_AS(lookup.register_type<std::tuple<>>("NotLeaf"), std::invalid_argument);
     const auto field = cel::record_field{"x", cel::value_type::leaf<bool>()};
     CHECK_THROWS_AS(lookup.register_record("Bad", std::array{field, field}), std::invalid_argument);
-    CHECK_THROWS_AS(lookup.push_scope({}), std::invalid_argument);
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::push_scope(lookup, {}),
+                    std::invalid_argument);
 }
 
 TEST_CASE("structural signatures follow operations and records project complete schemas") {
@@ -352,7 +362,8 @@ TEST_CASE("structural signatures follow operations and records project complete 
     const auto payload = cel::value::from(std::vector<std::tuple<double, bool>>{{2.0, true}});
     cel::dyn_segment builder;
     builder.just(cel::value::record(schema, std::array{payload}));
-    lookup.apply("part", builder, 1, {}, cel::lookup_selector::member);
+    cel::parser_detail::lookup_access::apply(lookup, "part", builder, 1, {},
+                                             cel::parser_detail::lookup_selector::member);
     CHECK(evaluate<std::vector<std::tuple<double, bool>>>(std::move(builder)) ==
           std::vector<std::tuple<double, bool>>{{2.0, true}});
     lookup.register_operation(
@@ -365,7 +376,8 @@ TEST_CASE("structural signatures follow operations and records project complete 
         });
     cel::dyn_segment shadowed;
     shadowed.just(cel::value::record(schema, std::array{payload}));
-    lookup.apply("part", shadowed, 1, {}, cel::lookup_selector::member);
+    cel::parser_detail::lookup_access::apply(lookup, "part", shadowed, 1, {},
+                                             cel::parser_detail::lookup_selector::member);
     CHECK(evaluate<std::vector<std::tuple<double, bool>>>(std::move(shadowed)) ==
           std::vector<std::tuple<double, bool>>{{7.0, false}});
     CHECK_THROWS_AS(operation<bool>(lookup, "==", input_type{true, {}}, input_type{true, {}}),
@@ -384,24 +396,26 @@ TEST_CASE("callable dispatch accepts complete nested parameters and client resul
         cel::op_lookup lookup;
         builder.just(function.to_value());
         builder.just(cel::value::from(input_type{true, {{6.0}}}));
-        lookup.apply("()", builder, 2, {});
+        cel::parser_detail::lookup_access::apply(lookup, "()", builder, 2, {});
     }
     CHECK(evaluate<first>(std::move(builder)).number == 6.0);
     cel::dyn_segment member;
     member.just(function.to_value());
     member.just(cel::value::from(input_type{true, {{6.0}}}));
     cel::op_lookup lookup;
-    CHECK_THROWS_AS(lookup.apply("()", member, 2, {}, cel::lookup_selector::member),
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(
+                        lookup, "()", member, 2, {}, cel::parser_detail::lookup_selector::member),
                     cel::parse_error);
     cel::dyn_segment missing_argument;
     missing_argument.just(function.to_value());
-    CHECK_THROWS_AS(lookup.apply("()", missing_argument, 1, {}), cel::parse_error);
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(lookup, "()", missing_argument, 1, {}),
+                    cel::parse_error);
     CHECK(missing_argument.operand_types(1)[0].compatible_with(function.type()));
     cel::dyn_segment wrong_argument;
     wrong_argument.just(function.to_value());
     wrong_argument.just(cel::value::from(true));
     try {
-        lookup.apply("()", wrong_argument, 2, {3, 9});
+        cel::parser_detail::lookup_access::apply(lookup, "()", wrong_argument, 2, {3, 9});
         FAIL("wrong callable argument admitted");
     } catch (const cel::parse_error& error) {
         CHECK(error.category() == cel::error_category::lookup_error);
@@ -427,7 +441,7 @@ TEST_CASE("range emitters and casts preserve exact retained types and diagnostic
                                                                                          1U;
         if (arity > 0) builder.just(cel::value::from(-0.0));
         if (arity > 1) builder.just(cel::value::from(std::numeric_limits<double>::infinity()));
-        lookup.apply(name, builder, arity, {});
+        cel::parser_detail::lookup_access::apply(lookup, name, builder, arity, {});
         auto value = std::move(builder).finish().execute(stack, {});
         const bool same_form = value.type().form() == kind;
         const bool same_count = value.size() == arity;
@@ -438,18 +452,18 @@ TEST_CASE("range emitters and casts preserve exact retained types and diagnostic
     }
     cel::dyn_segment number;
     number.just(cel::value::from(-0.0));
-    lookup.apply_cast("f64", number, {2, 8});
+    cel::parser_detail::lookup_access::apply_cast(lookup, "f64", number, {2, 8});
     CHECK(std::signbit(evaluate<double>(std::move(number))));
     cel::dyn_segment boolean;
     boolean.just(cel::value::from(true));
-    lookup.apply_cast("bool", boolean, {});
+    cel::parser_detail::lookup_access::apply_cast(lookup, "bool", boolean, {});
     CHECK(evaluate<bool>(std::move(boolean)));
     lookup.register_type<double>("AliasD");
     for (auto target : {"bool", "f32", "i32", "String", "AliasD"}) {
         cel::dyn_segment invalid;
         invalid.just(cel::value::from(3.0));
         try {
-            lookup.apply_cast(target, invalid, {4, 11});
+            cel::parser_detail::lookup_access::apply_cast(lookup, target, invalid, {4, 11});
             FAIL("unsupported cast accepted");
         } catch (const cel::parse_error& error) {
             CHECK(error.span() == cel::source_span{4, 11});
@@ -457,7 +471,8 @@ TEST_CASE("range emitters and casts preserve exact retained types and diagnostic
         CHECK(evaluate<double>(std::move(invalid)) == 3.0);
     }
     cel::dyn_segment empty;
-    CHECK_THROWS_AS(lookup.apply_cast("f64", empty, {}), cel::parse_error);
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply_cast(lookup, "f64", empty, {}),
+                    cel::parse_error);
     CHECK_THROWS_AS(operation<double>(lookup, "range", true, false), cel::parse_error);
 }
 
@@ -465,7 +480,8 @@ TEST_CASE("zero-argument functions skip value scopes during direct operation sel
     cel::op_lookup lookup;
     lookup.register_function("zero", named_function{});
     lookup.register_op<double>("zero", [] { return 2.0; });
-    lookup.push_scope(
+    cel::parser_detail::lookup_access::push_scope(
+        lookup,
         [](std::string_view name, cel::dyn_segment& builder, std::size_t arity, cel::source_span) {
             if (name != "zero" || arity != 0) return false;
             builder.just(cel::value::from(7.0));
@@ -473,9 +489,10 @@ TEST_CASE("zero-argument functions skip value scopes during direct operation sel
         });
     CHECK(operation<double>(lookup, "zero") == 7.0);
     cel::dyn_segment builder;
-    lookup.apply("zero", builder, 0, {}, cel::lookup_selector::ordinary,
-                 cel::scope_selection::library_only);
-    lookup.apply("()", builder, 1, {});
+    cel::parser_detail::lookup_access::apply(lookup, "zero", builder, 0, {},
+                                             cel::parser_detail::lookup_selector::ordinary,
+                                             cel::parser_detail::scope_selection::library_only);
+    cel::parser_detail::lookup_access::apply(lookup, "()", builder, 1, {});
     CHECK(evaluate<double>(std::move(builder)) == 2.0);
 }
 
@@ -484,8 +501,8 @@ TEST_CASE("function marker retirement preserves zero-byte source unit results") 
     lookup.register_function("unit", named_function{});
     lookup.register_op<std::tuple<>>("unit", [] { return std::tuple{}; });
     cel::dyn_segment builder;
-    lookup.apply("unit", builder, 0, {});
-    lookup.apply("()", builder, 1, {});
+    cel::parser_detail::lookup_access::apply(lookup, "unit", builder, 0, {});
+    cel::parser_detail::lookup_access::apply(lookup, "()", builder, 1, {});
     CHECK(evaluate<std::tuple<>>(std::move(builder)) == std::tuple{});
 }
 
@@ -502,5 +519,6 @@ TEST_CASE("registered descriptors distinguish semantic equality from ownership c
         [](cel::dyn_segment&, cel::source_span) { FAIL("incompatible ownership selected"); });
     cel::dyn_segment builder;
     builder.just(function.to_value());
-    CHECK_THROWS_AS(lookup.apply("test", builder, 1, {}), cel::parse_error);
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(lookup, "test", builder, 1, {}),
+                    cel::parse_error);
 }
