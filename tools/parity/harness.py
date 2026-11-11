@@ -25,9 +25,16 @@ def validate_response(row, response):
 
 
 def compare(row, cpp, rust):
-    """Rejects differing types, bits, structures, traces, or normalized error intervals."""
+    """Requires Rust acceptance of every C++ compilation and exact shared observations."""
     validate_response(row, cpp)
     validate_response(row, rust)
+    if cpp[0] != "parse":
+        assert rust[0] != "parse", (row["id"], "C++ accepts a Rust rejection", cpp, rust)
+    if row.get("cpp_reject"):
+        assert cpp[0] == "parse", (row["id"], "excluded C++ feature accepted", cpp, rust)
+        if "expected_cpp" in row:
+            assert cpp == row["expected_cpp"], (row["id"], cpp, row)
+        return
     if cpp[0] == rust[0] == "parse":
         assert "category" in row, (row["id"], "unexpected parse failure", cpp, rust)
         assert len(cpp) == len(rust) == 4, (row["id"], cpp, rust)
@@ -41,12 +48,6 @@ def compare(row, cpp, rust):
         if "span" in row:
             assert list(map(int, cpp[1:3])) == row["span"], (row["id"], cpp, row)
         return
-    if row.get("zero_choice"):
-        assert cpp[0:2] == rust[0:2] == ["ok", "D"], (row["id"], cpp, rust)
-        zeros = {"0000000000000000", "8000000000000000"}
-        if cpp[2] in zeros and rust[2] in zeros:
-            cpp = [*cpp[:2], "zero", *cpp[3:]]
-            rust = [*rust[:2], "zero", *rust[3:]]
     assert cpp == rust, (row["id"], cpp, rust)
     assert cpp[0] == row.get("status", "ok"), (row["id"], cpp, row)
     if "expected" in row:
@@ -56,10 +57,10 @@ def compare(row, cpp, rust):
 def run_driver(path, rows):
     """Runs one process and requires exactly one complete response per fixture."""
     assert all(
-        not any(c in r["source"] or c in r.get("setup", "std") for c in "\t\r\n")
+        not any(c in r["source"] or c in r.get("setup", "core") for c in "\t\r\n")
         for r in rows), "line-protocol fixtures must contain no tabs or line breaks"
     requests = "".join(
-        f'{r.get("setup", "std")}\t{r["source"]}\n' for r in rows)
+        f'{r.get("setup", "core")}\t{r["source"]}\n' for r in rows)
     result = subprocess.run([path], input=requests, text=True,
                             capture_output=True)
     if result.returncode:
@@ -82,23 +83,18 @@ def main():
     else:
         rows = fixtures()
     assert rows and len({r["id"] for r in rows}) == len(rows), "empty/duplicate fixtures"
-    shared = [r for r in rows if not r.get("cpp_only")]
+    rust = run_driver(args.rust, rows)
     cpp = run_driver(args.cpp, rows)
-    rust = dict(zip((r["id"] for r in shared), run_driver(args.rust, shared)))
     failures = []
-    for row, left in zip(rows, cpp):
+    for row, left, right in zip(rows, cpp, rust):
         try:
-            if row.get("cpp_only"):
-                validate_response(row, left)
-                assert left == row["expected_cpp"], (row["id"], left, row)
-            else:
-                compare(row, left, rust[row["id"]])
+            compare(row, left, right)
         except AssertionError as error:
             failures.append(str(error))
     if failures:
         raise AssertionError("\n".join(failures))
-    print(f"PASS: {len(shared)} differential fixtures; "
-          f'{len(rows)-len(shared)} explicit C++ contract adaptations; '
+    print(f"PASS: {len(rows)} exact-source differential fixtures; "
+          f'{sum(bool(r.get("cpp_reject")) for r in rows)} checked C++ rejections; '
           f'{len({r["family"] for r in rows})} fixture families')
 
 

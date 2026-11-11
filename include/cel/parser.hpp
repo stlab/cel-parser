@@ -59,7 +59,7 @@ public:
     [[nodiscard]] source_span span() const noexcept { return span_; }
 };
 
-/// Retains the numeric syntax independently of its binary64 scalar type.
+/// Retains the numeric syntax independently of its converted binary64 value.
 /// Example: numeric_form::decimal describes the coalesced selector token "0.1".
 enum class numeric_form {
     integer, ///< Unsuffixed or suffixed integer spelling, including radix prefixes.
@@ -71,7 +71,8 @@ enum class numeric_form {
 /// The text lexer uses round-to-nearest binary64 conversion.
 /// Overflow yields positive infinity and underflow rounds to a subnormal or zero.
 /// Copying takes O(spelling.size() + suffix.size()) time and space.
-/// Example: numeric_literal{1.0, "1f64", "f64", numeric_form::integer}.
+/// Integer tokens support lexical consumers and tuple selectors, not core numeric values.
+/// Example: numeric_literal{1.0, "1.0f64", "f64", numeric_form::decimal}.
 struct numeric_literal {
     double value;         ///< Converted scalar; the text lexer emits signs as punctuation.
     std::string spelling; ///< Exact source spelling, including underscores and suffix.

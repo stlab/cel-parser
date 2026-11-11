@@ -92,11 +92,11 @@ std::string value(const cel::value& object) {
         result += value(object.at(index)) + ";";
     return result + "]";
 }
-/// Installs public callbacks, complete nominal schemas, and independent scope witnesses.
+/// Returns fresh intrinsics for core/default, otherwise installs matching client fixtures.
 /// Complexity: O(registration and metadata work).
 cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace) {
     cel::op_lookup result;
-    if (setup != "default") cel::install_standard_library(result);
+    if (setup == "core" || setup == "default") return result;
     result.register_type<client_leaf>("Client");
     result.register_type<double>("Alias");
     result.register_record("Pair",

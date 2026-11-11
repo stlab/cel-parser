@@ -11,7 +11,7 @@ P4 fixes malformed selector conversion spans at
 pinned to the original baseline.
 The runtime source upstream is
 [stlab/cel-runtime](https://github.com/stlab/cel-runtime).
-Use runtime revision `6be981a40606138140c21fe2349d8d8d44888aa5`.
+Use runtime revision `6709f3df4a97429d210be2390f6fac93bc21d0ef`.
 This prerequisite includes shared native descriptors, cached operand origins,
 result-first operation helpers, stack-independent
 executable retirement and complete higher-order result ownership checks; the
@@ -28,10 +28,13 @@ The delivered Rust evidence establishes these contracts:
 | `cel-parser/src/lex_lexer.rs:398–448` | Literal, identifier, punctuation, delimiter, doc, and error alternatives |
 | `cel-parser/src/lex_lexer.rs:1225–1239` | `5..10` range splitting |
 | `cel-parser/src/error.rs:11–25, 108–144` | Portable source diagnostics and original-source byte conversion |
-| `cel-parser/src/lib.rs:511–552` | Rust literal discrimination; approved C++ bool/f64-only adaptation |
+| `cel-parser/src/lib.rs:511–552` | Rust literal discrimination; C++ retains bool/f64 value forms only |
 | `cel-parser/src/lib.rs:1828–1870` | Structural tuple selectors, including decimal-token splitting for `.0.1` |
 
-Rust's integer default differs deliberately: C++ unsuffixed numbers are binary64.
+Rust integer literals retain integer types. The bool/f64 C++ core rejects
+integer value forms instead of converting them to f64. Integer tokens remain
+available for tuple selectors. Standard-library installation belongs to Rust
+`cel-std` or a corresponding separate C++ library, not this parser.
 The text adapter's byte spans and direct doc metadata are interface adaptations;
 see the [lexical contract](lexical-contract.md).
 
@@ -40,6 +43,11 @@ see the [lexical contract](lexical-contract.md).
 The locked Rust dependencies are `proc-macro2` 1.0.107, Syn 2.0.119, and
 `unicode-ident` 1.0.27. The delivered `cargo tree --locked --offline` evidence
 resolves these versions.
+
+The strict-subset audit compares all 320797 memberships in the generated C++
+XID tables against the compiled Rust `unicode-ident` dependency, with no C++
+membership absent from Rust. Complete-expression fixtures separately exercise
+identifier and token-boundary acceptance.
 
 Focused authoritative sources establish lexical details:
 
@@ -120,20 +128,21 @@ Owned operation lookup, complete recursive type parsing, and retained bool/f64
 emitters and retained expression productions are implemented. See the
 [built-in census](builtin-census.md) and [expression grammar](expression-grammar.md)
 for source-bound dispositions and contract tests. The
-[P4 handoff](p4-handoff.md) maps every retained family to differential,
-equivalent public-interface, or explicit adaptation evidence.
+[exact-source gate](validation.md) checks retained grammar and client-binding
+families; the [P4 handoff](p4-handoff.md) records superseded port history.
 Independent final review and unavailable platform gates remain separate.
 
 The expression compiler consumes only `current()` and `advance()`. It retains
 strict Wirth-style LL(1) separator laws, uses exact numeric spellings for
 structural selectors, splits `.0.1`, and rejects scientific/suffixed tuple
-selectors. Postfix `[expression]` is the approved C++ array-index adaptation
-and uses the runtime's checked binary64-to-index boundary.
+selectors. Integer value forms and postfix `[expression]` are rejected rather
+than treated as language adaptations.
 
 The lexer tests cover lifetime independence, full source-byte spans, comments,
 Unicode names and malformed UTF-8, arbitrary-depth iterative traversal, numeric
 boundaries, compound separation, producer cursor termination, and static
-non-clonability. The differential tooling normalizes only named, documented
-adapter fixtures rather than incidental exception messages. See
+non-clonability. The differential tooling never rewrites source or exempts C++
+acceptance. Named diagnostic differences and selected callback-error
+normalization apply only to responses, not expressions. See
 [validation](validation.md) for configuration, diagnostic rulings,
 installed clients, and warmed timing boundaries.

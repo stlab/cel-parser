@@ -1,7 +1,8 @@
 # Validate retained contracts and execution costs {#parser_validation}
 
 This guide serves library maintainers. It separates public cross-language
-comparisons, C++ adaptations, installed consumption, and local measurements.
+exact-source subset checks, diagnostic differences, installed consumption,
+and local measurements.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -24,7 +25,7 @@ ctest --preset test
 ```
 
 Enabled parity requires `BUILD_TESTING`, Python 3.9 or later, Cargo, source
-manifests for `cel-parser`, `cel-runtime`, and `cel-std`, and the source lockfile.
+manifests for `cel-parser` and `cel-runtime`, and the source lockfile.
 Missing inputs fail configuration or the reference build; they do not skip a
 test. `tools/parity/prepare_reference.py` generates a test-only Cargo project
 under the build directory, seeds its initial resolution from the supplied
@@ -47,16 +48,25 @@ request per line and rejects tabs/line breaks in fixture expressions or setup
 names. This tooling restriction does not limit the parser or decoded client;
 their public lexer/client contracts cover whitespace and multiline text.
 
-`fixtures.py` maintains decoded expressions and independently specified scalar
-expectations. Both drivers compile before executing callbacks, destroy the
+`fixtures.py` maintains unmodified decoded expressions and independently
+specified scalar expectations. `core_corpus.py` adds deterministic core grammar,
+operator, and lexical-boundary cases. The gate sends every identical source
+to Rust and C++, with no source rewriting or accepted C++-only exemptions.
+`core` uses fresh intrinsic-only lookups; explicit client setups install matching
+callbacks, aliases, records, and field-accessor operations. Every C++ compile
+success requires Rust compile success, even when execution subsequently fails.
+A documented `cpp_reject` case checks narrower C++ acceptance, not an oracle bypass.
+Positive fixtures require successful parsing in both drivers.
+
+Both drivers compile before executing callbacks, destroy the
 parser, execute successful fixtures three times, and compare complete semantic
 types, structural values, ordered effects, and exact binary64 bits.
 Each successful execution's normalized trace is compared with the first,
 alongside its type and value; a stable final trace cannot conceal changed
 earlier effects. Traced
 callback arguments also retain full f64 bits without narrowing to integers. NaN
-payloads are unspecified and normalize to `nan`. Only explicitly marked
-`min`/`max` equal-zero fixtures admit either zero sign. Callable values compare
+payloads are unspecified and normalize to `nan`. Signed-zero bits compare
+exactly. Callable values compare
 their full signature, not native bytes; invocation fixtures and the Rust
 typed callable-array test verify real retained code after parser destruction.
 
@@ -66,13 +76,15 @@ does not expose the same caller-owned prefix boundary. C++ cached/runtime
 contract tests independently verify that boundary rather than fabricate an
 equivalent Rust raw-storage test.
 
-## Interpret diagnostics and adaptations
+## Interpret diagnostics and narrower acceptance
 
-Every failure fixture checks the C++ category and both byte intervals. Rust
-has no corresponding category enum, so the comparison checks its parse/runtime
-boundary rather than inventing an exact Rust category.
+Diagnostic fixtures check their declared C++ categories and byte intervals.
+Checked C++ rejections require complete parse-error records; only cases with
+`expected_cpp` pin the category and interval. Runtime fixtures check the
+execution boundary and trace. Rust has no corresponding category enum, so the
+comparison does not invent an exact Rust category.
 
-Only named per-fixture adaptations are allowed:
+Only named diagnostic differences and checked C++ rejections are allowed:
 
 - `group-delimiter`: proc-macro group spans include the entire group; C++ closing
   delimiters have their own token spans.
@@ -80,8 +92,8 @@ Only named per-fixture adaptations are allowed:
   lexer has a real EOF byte position.
 - `excluded-parameter-type`: the approved C++ parameter set excludes client
   leaves, arrays of client leaves, and callable parameters that Rust admits.
-- Integer-spelled binary64 literals and checked bracket indexing follow
-  explicit C++ contracts, not Rust syntax equality.
+- Integer value forms and postfix bracket indexing are rejected by the C++ core.
+  They are not accepted-language adaptations.
 
 Malformed selector conversion is **not** an EOF adaptation. P4 corrected the
 Rust parser to retain the original literal span. Record field type failures
@@ -95,13 +107,9 @@ errors, with nonempty discriminators and valid parse intervals. Empty traces
 remain valid.
 
 Client callback failure normalization uses a distinct Rust error type and
-the matching C++ exception type. Rust's standard clamp emitter returns an
-untyped `anyhow` error; only explicitly selected clamp fixtures with its exact
-source-defined `"invalid clamp bounds"` error normalize to `runtime/clamp`.
-C++ requires the same clamp witness and recognizes only the selected indexing
-witnesses `"invalid floating array index"` and `"array index out of bounds"`.
-Only execution enters this normalization boundary; serialization and prefix
-checks propagate their exceptions.
+the matching C++ exception type. Only the selected client callback enters this
+normalization boundary; serialization and prefix checks propagate their
+exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
@@ -163,11 +171,11 @@ No timing threshold appears in unit tests.
 
 | Workload | Boundary |
 | --- | --- |
-| `prepared-scalar` | `2+3*4+(81).sqrt()`; direct arithmetic/member dispatch, typed double result |
-| `named-scalar-aggregate-retirement` | `2+3*4+sqrt(81)`; owning intermediate marker/result packing |
-| `prepared-owning-nested-array` | `[[1,2],[3,4]]`; native nested-vector result conversion and retirement |
+| `prepared-scalar` | `2.0+3.0*4.0+9.0`; intrinsic arithmetic, typed double result |
+| `prepared-closure-aggregate-retirement` | `(\|\|2.0+3.0*4.0+9.0)()`; owning closure invocation and result packing |
+| `prepared-owning-nested-array` | `[[1.0,2.0],[3.0,4.0]]`; native nested-vector result conversion and retirement |
 | `erased-owning-nested-array` | Same source; public erased owning result, no child inspection |
-| `dynamic-callable` | `\|x:f64\|x*2+1`; shared callable, boxed argument 2, public dynamic invocation |
+| `dynamic-callable` | `\|x:f64\|x*2.0+1.0`; shared callable, boxed argument 2.0, public dynamic invocation |
 
 Keep platform/build-specific timings in the handoff/report, not portable speed
 claims. Both standalone and installed measurement clients run without analyzer

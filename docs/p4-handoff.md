@@ -1,5 +1,11 @@
 # Continue after parser P4 {#parser_p4_handoff}
 
+This historical P4 report predates the strict-subset correction. Its standard
+installer, integer-to-f64 value adaptation, bracket-indexing adaptation, and
+fixture exemptions are superseded by the [core census](builtin-census.md),
+[expression grammar](expression-grammar.md), and
+[exact-source validation](validation.md).
+
 P4 adds public differential tooling, a cached decoded-expression client,
 installed clients, separate execution measurements, and explicit provisioned
 CI inputs. It does not publish packages or establish overall port completion.

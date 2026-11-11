@@ -2,9 +2,9 @@
 
 This reference lets parser maintainers check the retained operation inventory
 against Rust revision `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`.
-P4 adds differential and equivalent public-interface evidence, mapped in the
-[feature closure](p4-handoff.md). Use the corrected runtime prerequisite pinned
-in [source evidence](evidence.md).
+The [exact-source gate](validation.md) compares complete parsing with the
+canonical Rust implementation. Use the runtime prerequisite pinned in
+[source evidence](evidence.md).
 
 ## Source and dispatch anchors
 
@@ -15,18 +15,17 @@ The census uses these executable producer and consumer anchors:
 | [Core table and selector](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-parser/src/op_table.rs#L1024-L1105) | Exact core names, static signatures, and shift dispatch |
 | [Scoped resolution](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-parser/src/op_table.rs#L2030-L2137) | Ordinary/member selection, custom precedence, and callable fallback |
 | [Registered emitter selection](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-parser/src/registered_ops.rs#L414-L489) | Complete operand matching and first-marker ordinary calls |
-| [Standard installer](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-std/src/math.rs#L61-L129) | Eleven persistent standard numeric names and exact Rust methods |
-| [Public standard-library installation](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-std/src/lib.rs#L13-L35) | Opt-in installation; persistent registrations survive isolation |
+| [Separate Rust standard library](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-std/src/lib.rs#L13-L35) | Standard-library installation is outside the parser core |
 | [Type expression resolution](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-parser/src/type_expr.rs#L14-L126) | Recursive tuples, arrays, named types, and complete Fn results |
 | [Cast target routing](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-parser/src/op_table.rs#L1370-L1395) | Closed target spellings; registered aliases aren't cast targets |
 | [Cast and unary consumption](https://github.com/stlab/cel-rs/blob/03d658f8b12acabe1d6a2503281e7c86cf00b6a3/cel-parser/src/lib.rs#L1688-L1727) | Casts consume an identifier, not a full type; unary prefixes are `-` and `!` only |
 
 `op_lookup` installs core operations, identity casts, and the persistent
-`range_full` scope by default. `install_standard_library` installs standard
-numeric functions explicitly; constructing a lookup doesn't install them.
-Client operation/structural registrations precede core built-ins. Standard
-functions are persistent registrations and compose with disjoint client
-overloads. Typed operation callbacks execute only when compiled runtime code runs.
+`range_full` scope by default. The parser has no standard-library installer or
+standard numeric function implementations. Separate library components must
+match the corresponding Rust `cel-std` signatures and behavior.
+Client operation/structural registrations precede core built-ins.
+Typed operation callbacks execute only when compiled runtime code runs.
 Scope callbacks and descriptor emitters execute during compilation.
 
 ## Eager retained signatures
@@ -34,8 +33,8 @@ Scope callbacks and descriptor emitters execute during compilation.
 Each row names exact arguments/results. `D` means `f64`; `B` means `bool`.
 Every row is implemented with public checked runtime emission. The test anchors
 name cases in `tests/lookup_test.cpp`.
-Source syntax/precedence and standard-name call selectors are also covered by
-`retained precedence` and `standard numeric names` in `tests/expression_test.cpp`.
+Source syntax/precedence is also covered by `retained precedence` in
+`tests/expression_test.cpp`; `core lookup does not` checks absent library names.
 See the [expression grammar](expression-grammar.md) for every emission edge.
 
 | Name | Exact signature | Rust producer in `op_table.rs` unless noted | Semantics and test evidence |
@@ -61,24 +60,11 @@ See the [expression grammar](expression-grammar.md) for every emission edge.
 | `range_to` | `(D) -> RangeTo(D)` | L1001 | Constructs `..end`; range emitters and casts |
 | `range_to_inclusive` | `(D) -> RangeToInclusive(D)` | L1018 | Constructs `..=end`; range emitters and casts |
 | `range_full` | `() -> RangeFull()` | L1631-L1640 | Persistent scope constructs bare `..`; canonical C++ metadata retains D endpoint identity; range emitters and casts |
-| `min` | `(D, D) -> D` | `cel-std/src/math.rs:L76-L80` | Rust `min`, ignores one NaN; equal zeros may choose either operand; standard numeric names |
-| `max` | `(D, D) -> D` | `cel-std/src/math.rs:L81-L85` | Rust `max`, ignores one NaN; equal zeros may choose either operand; standard numeric names |
-| `clamp` | `(D, D, D) -> D` | `cel-std/src/math.rs:L86-L92` | Rejects bounds unless `lo <= hi`, including NaN bounds; NaN value remains NaN; standard numeric names |
-| `abs` | `(D) -> D` | `cel-std/src/math.rs:L121` | Floating absolute value, clears zero sign; standard numeric names and rounding/IEEE helpers |
-| `signum` | `(D) -> D` | `cel-std/src/math.rs:L122` | NaN remains NaN; +0 gives +1, -0 gives -1; standard numeric names |
-| `sqrt` | `(D) -> D` | `cel-std/src/math.rs:L123` | Negative input gives NaN; preserves -0; standard numeric names and rounding/IEEE helpers |
-| `floor` | `(D) -> D` | `cel-std/src/math.rs:L124` | Toward negative infinity; standard numeric names |
-| `ceil` | `(D) -> D` | `cel-std/src/math.rs:L125` | Toward positive infinity; standard numeric names |
-| `trunc` | `(D) -> D` | `cel-std/src/math.rs:L126` | Toward zero; standard numeric names |
-| `fract` | `(D) -> D` | `cel-std/src/math.rs:L127` | `x - trunc(x)`, including infinity-to-NaN; standard numeric names and rounding/IEEE helpers |
-| `round_ties_even` | `(D) -> D` | `cel-std/src/math.rs:L128` | Halfway-to-even, independent of ambient rounding mode; standard numeric names and rounding/IEEE helpers |
 
-These rows represent 34 retained eager signatures, including casts and the
-zero-operand full-range constructor. Standard numeric bare names push the
-first owned marker; ordinary `"()"` calls and direct member operations select
-the same persistent signatures. Tests exercise both selectors and cached
-capture lifetime. `round` is deliberately absent; Rust tests that rejection at
-`cel-std/src/math.rs:721–731`.
+These rows represent 23 retained eager signatures, including casts and the
+zero-operand full-range constructor. Standard functions are outside this
+inventory and are not supplied by the parser package. Client function tests
+exercise ordinary/member selectors and cached capture lifetime.
 Cast targets retain only the spellings `bool` and `f64`. A registered alias of
 either leaf is valid in type syntax but isn't a cast target. Unary `+` is absent,
 not an identity operation. Tests reject both extensions.
@@ -94,16 +80,16 @@ callable parameters retain their stricter eligibility rules.
 | Tuple/unit construction | Source-ordered `(T0, ..., Tn) -> tuple(T0, ..., Tn)` | `cel-parser/src/lib.rs:2075–2160` | `()` / `(x,)` / `(x,y)` use `make_tuple`; `tuple group unit` |
 | Tuple projection | `tuple(T0, ..., Tn) -> Ti` | `cel-parser/src/lib.rs:1828–1870` | `.N`, including `.0.1` raw splitting, uses `project_tuple`; `tuple selectors` |
 | Array construction | Homogeneous `(T ... T) -> [T]`, including annotated empty arrays | `cel-parser/src/lib.rs:2182–2247` | `[x,y]:[T]` / `[]:[T]` use `make_array`, bound empty type witnesses; `tuple group unit`, `closures admit complete` |
-| Array index | `([T], D) -> T` for checked finite integral in-bounds D | Rust has no bracket postfix at `cel-parser/src/lib.rs:1782–1784` | Approved C++ postfix `[expression]` uses `index_array`; `explicit C++ array indexing` |
 | Nominal records | Schema-complete field construction and receiver-first typed selection | `cel-parser/src/lib.rs:2006–2071`, supplied record evidence | `Name{field:expr}` maps source order through `make_record`; `.field` uses member lookup; `registered names`, `semantic record parameters` |
-| Named function values | Bare name -> first marker; `(marker, Args...) -> R` through direct signatures | `cel-parser/src/registered_ops.rs:303–334,448–489` | Bare names / `name(args)` use ordinary zero/marker-inclusive lookup; `registered names`, `standard numeric names` |
+| Named function values | Bare name -> first marker; `(marker, Args...) -> R` through direct signatures | `cel-parser/src/registered_ops.rs:303–334,448–489` | Client bare names / `name(args)` use ordinary zero/marker-inclusive lookup; `registered names` |
 | Installed callable invocation | `(Fn((Args...), R), Args...) -> R` | `cel-parser/src/op_table.rs:2125–2137` | `(callee)(args)` uses ordinary `"()"`, public `invoke_closure`; `closures admit complete` |
 | Closure creation | Independent body/parameters -> installed Fn value with any complete R | `cel-parser/src/lib.rs:2416–2491` | `|| expr` / `|name:T| expr` uses isolated formals and `push_closure`; `closures admit complete`, `independent closure scope` |
 | Lazy `&&`, `\|\|` | Bool LHS plus selected dependent bool RHS -> bool | `cel-parser/src/lib.rs:1322–1372`, `cel-parser/src/parser_context.rs:874–894` | `a && b` / `a \|\| b` use dependent `logical_and` / `logical_or`; `lazy branches` |
 | Conditional | Bool condition plus one selected dependent body -> shared complete result | `cel-parser/src/lib.rs:2507–2582`, `cel-parser/src/parser_context.rs:897–918` | `if cond {a} [else {b}/else if ...]` uses dependent `if_else`; absent else emits unit; `lazy branches` |
 
 No universal tuple/array equality, floating range iteration, or `len` builtin
-appears in the core table or standard installer. Tuple-shaped operations are
+appears in the core table. Postfix bracket indexing is not core syntax.
+Tuple-shaped operations are
 explicit runtime registrations, not default signatures
 (`cel-parser/src/op_table.rs:1698–1768`). Clients can register complete structural
 emitters or scope callbacks; the parser doesn't reinterpret their results.
@@ -124,13 +110,12 @@ The following signatures are not retained:
 | Floating cast tables L1304-L1347 | f64->f32, f32->f64/f32, integer->f32/f64 | Removed input or result; only D identity remains |
 | String cast table L1363-L1367 | `(String) -> String` | Removed scalar; B/D-to-String and numeric-to-B aren't registered Rust casts |
 | Range tables L932-L1019 and generics L1525-L1570 | Integer/f32 endpoint range forms | Removed endpoints; Range(bool) is not registered; no iteration adaptation |
-| Standard installer `math.rs:L74-L128` | Integer/f32 min/max/clamp; signed integer abs/signum; f32 unary functions | Removed scalar signatures; only eleven D signatures remain |
-| Standard installer `math.rs:L61-L129` | `round`, `pow`, `powf`, trigonometric helpers, structural length helpers | Not installed by this Rust standard library; no invented library names/results |
 | Core/static installer and client boundaries | Built-in arithmetic on registered leaves, records, arrays, or tuples without a signature | Explicit no-match unless a client registers that operation |
 
 Tests reject removed type names, converting callbacks, wrong nominal operands,
 unsupported casts and bitwise names, missing functions, and composite equality.
 Expression tests preserve these dispatch failures. P4 `type-lookup-errors`
 fixtures add shared rejection comparisons; removed scalar spellings and
-C++ parameter exclusions retain their explicit own-contract tests rather
-than being recast as supported signatures.
+C++ parameter exclusions retain checked rejection contracts. Every fixture
+still reaches complete Rust parsing; neither narrowing nor diagnostic
+differences authorize a C++-accepted source that Rust rejects.

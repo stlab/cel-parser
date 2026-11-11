@@ -375,9 +375,7 @@ class expression_compiler {
                 builder.project_tuple(indices[i]);
         });
     }
-    /// postfix_expression = primary { arguments | "." (identifier [arguments] | selector)
-    /// | "[" expression "]" }.
-    /// Bracket postfix indexing is the approved C++ adaptation, not Rust syntax parity.
+    /// postfix_expression = primary { arguments | "." (identifier [arguments] | selector) }.
     /// Complexity: O(postfix tokens + emission work), O(nested expressions + code) storage.
     void postfix(dyn_segment& builder) {
         const auto start = current().span;
@@ -397,11 +395,6 @@ class expression_compiler {
                 } else {
                     tuple_selector(builder, start);
                 }
-            } else if (opening(delimiter::bracket)) {
-                advance();
-                ordinary(builder);
-                expect_group(delimiter::bracket, false);
-                structural(span_from(start), [&] { builder.index_array(); });
             } else
                 break;
         }
@@ -415,6 +408,9 @@ class expression_compiler {
             builder.just(value::from(*boolean));
             advance();
         } else if (const auto* number = std::get_if<numeric_literal>(&current().value)) {
+            if (number->form == numeric_form::integer)
+                throw parse_error(error_category::unsupported_literal, start,
+                                  "integer value literals are outside the bool/f64 core");
             if (!number->suffix.empty() && number->suffix != "f64")
                 throw parse_error(error_category::unsupported_literal, start,
                                   "unsupported numeric suffix");

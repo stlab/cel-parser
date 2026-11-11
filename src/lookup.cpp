@@ -3,7 +3,6 @@
 #include <cassert>
 #include <cel/parser/lookup.hpp>
 #include <cmath>
-#include <limits>
 
 namespace cel {
 namespace {
@@ -35,37 +34,6 @@ bool reserved_type(std::string_view name) {
                                "RangeFull"};
     return std::ranges::find(names, name) != names.end();
 }
-/// Rounds binary64 halfway values to even independently of the ambient rounding mode.
-/// NaNs, infinities, signed zero, and already integral values retain Rust method behavior.
-double round_ties_even(double input) {
-    double integral = 0.0;
-    const double fraction = std::modf(input, &integral);
-    if (std::abs(fraction) != 0.5) return std::round(input);
-    if (std::fmod(integral, 2.0) == 0.0) return integral;
-    return integral + std::copysign(1.0, fraction);
-}
-/// Marks the first standard min binding without runtime-owned mutable state.
-struct min_marker {};
-/// Marks the first standard max binding.
-struct max_marker {};
-/// Marks the first standard clamp binding.
-struct clamp_marker {};
-/// Marks the first standard abs binding.
-struct abs_marker {};
-/// Marks the first standard signum binding.
-struct signum_marker {};
-/// Marks the first standard sqrt binding.
-struct sqrt_marker {};
-/// Marks the first standard floor binding.
-struct floor_marker {};
-/// Marks the first standard ceil binding.
-struct ceil_marker {};
-/// Marks the first standard trunc binding.
-struct trunc_marker {};
-/// Marks the first standard fract binding.
-struct fract_marker {};
-/// Marks the first standard halfway-even binding.
-struct round_marker {};
 } // namespace
 
 void op_lookup::insert(names<std::vector<operation>>& destination,
@@ -334,34 +302,4 @@ void op_lookup::install_builtins() {
     }
 }
 
-void install_standard_library(op_lookup& lookup) {
-    lookup.register_function("min", min_marker{});
-    lookup.register_function("max", max_marker{});
-    lookup.register_function("clamp", clamp_marker{});
-    lookup.register_function("abs", abs_marker{});
-    lookup.register_function("signum", signum_marker{});
-    lookup.register_function("sqrt", sqrt_marker{});
-    lookup.register_function("floor", floor_marker{});
-    lookup.register_function("ceil", ceil_marker{});
-    lookup.register_function("trunc", trunc_marker{});
-    lookup.register_function("fract", fract_marker{});
-    lookup.register_function("round_ties_even", round_marker{});
-    lookup.register_op<double, double, double>("min",
-                                               [](double a, double b) { return std::fmin(a, b); });
-    lookup.register_op<double, double, double>("max",
-                                               [](double a, double b) { return std::fmax(a, b); });
-    lookup.register_op<double, double, double, double>("clamp", [](double x, double lo, double hi) {
-        if (!(lo <= hi)) throw std::invalid_argument("invalid clamp bounds");
-        return x < lo ? lo : x > hi ? hi : x;
-    });
-    lookup.register_op<double, double>("abs", [](double a) { return std::abs(a); });
-    lookup.register_op<double, double>(
-        "signum", [](double a) { return std::isnan(a) ? a : std::copysign(1.0, a); });
-    lookup.register_op<double, double>("sqrt", [](double a) { return std::sqrt(a); });
-    lookup.register_op<double, double>("floor", [](double a) { return std::floor(a); });
-    lookup.register_op<double, double>("ceil", [](double a) { return std::ceil(a); });
-    lookup.register_op<double, double>("trunc", [](double a) { return std::trunc(a); });
-    lookup.register_op<double, double>("fract", [](double a) { return a - std::trunc(a); });
-    lookup.register_op<double, double>("round_ties_even", round_ties_even);
-}
 } // namespace cel

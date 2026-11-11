@@ -43,6 +43,8 @@ public:
     /// Compiles one complete decoded UTF-8 CEL source through an owned source copy.
     /// Selects grammar alternatives from the current token alone. Consuming a comma requires
     /// another item except for a required singleton-tuple comma; optional trailing commas fail.
+    /// Numeric values require floating forms such as 1.0 or 1e0; integer forms are unsupported.
+    /// Postfix array indexing is not part of the core grammar.
     /// Returns an owned program under this class's ownership and failure contracts.
     /// Throws source-located parse_error for malformed_input, unsupported_literal, type_error,
     /// lookup_error, delimiter_error, or resource_limit as classified by error_category.
@@ -54,7 +56,7 @@ public:
     /// Client-emitter exceptions and allocation failures propagate without relabeling.
     /// Complexity: O(lexer traversal + emitted operations + lookup/type/structural metadata work)
     /// time, O(source bytes + code/captures + compilation metadata + bounded nesting) storage.
-    /// Example: `auto code = p.parse_str("(|| 7)()");`.
+    /// Example: `auto code = p.parse_str("(|| 7.0)()");`.
     compiled_segment parse_str(std::string_view source);
     /// Compiles one complete external flattened stream with the same productions and errors.
     /// Borrows tokens unchanged for this call only.

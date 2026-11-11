@@ -7,15 +7,14 @@
 int main() try {
     auto program = [] {
         cel::op_lookup lookup;
-        cel::install_standard_library(lookup);
         lookup.register_record(
             "Callbacks", std::array{cel::record_field{
                              "f", cel::value_type::callable({}, cel::value_type::leaf<double>())}});
         lookup.register_op<double, double>(
             "offset", [n = std::make_unique<double>(3)](double x) { return x + *n; });
         cel::parser compiler(std::move(lookup));
-        return compiler.parse_str("(Callbacks{f:|| (-4).abs().offset()}, "
-                                  "[]:[Fn((),Fn((),f64))], |x:[f64]| || 7)");
+        return compiler.parse_str("(Callbacks{f:|| 4.0.offset()}, "
+                                  "[]:[Fn((),Fn((),f64))], |x:[f64]| || 7.0)");
     }();
     cel::raw_stack stack;
     stack.push(99.0);

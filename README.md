@@ -7,6 +7,19 @@ and callbacks, compile source once, and execute cached code after the parser
 dies. Separate test tooling compares retained contracts with public Rust interfaces.
 JSON decoding remains your application's responsibility.
 
+## Language subset
+
+The C++ core is a bool/f64 subset of Rust `cel-parser`. Numeric values use
+floating forms such as `1.0`, `1e0`, or `1.0f64`; integer forms are not coerced
+to f64. Arrays are constructible values, but postfix bracket indexing is not
+part of the grammar. Integer tuple selectors remain supported.
+
+This package supplies no standard library. Standard-library components belong
+in separate packages and must match the corresponding Rust `cel-std`
+signatures and behavior. Client extensions require corresponding Rust bindings
+for cross-language acceptance. See the [core census](docs/builtin-census.md)
+and [exact-source validation](docs/validation.md).
+
 ## Build and verify
 
 Use CMake 3.24 or later, Ninja, and a C++20 compiler with floating-point
@@ -68,7 +81,7 @@ Read one scalar with the public header:
 #include <cel/parser.hpp>
 
 int main() try {
-    cel::lex_lexer lexer("1f64");
+    cel::lex_lexer lexer("1.0f64");
     if (std::get<cel::numeric_literal>(lexer.current().value).value != 1.0)
         return 1;
     lexer.advance();
@@ -80,7 +93,7 @@ int main() try {
 ```
 
 The installed-consumer CTest compiles and runs this interface without checkout
-include paths. It also executes cached callbacks, ordinary standard-function
+include paths. It also executes cached callbacks, ordinary client-function
 values, nested composites, and complete type parsing through installed headers.
 
 Compile a callback through checked lookup:
@@ -118,7 +131,7 @@ Compile decoded text and execute the cached program on your reusable stack:
 int main() try {
     auto code = [] {
         cel::parser compiler(cel::op_lookup{});
-        return compiler.parse_str("(|| 7)()");
+        return compiler.parse_str("(|| 7.0)()");
     }();
     cel::raw_stack stack;
     return code.execute(stack, {}).as<double>() == 7.0 ? 0 : 1;
@@ -153,7 +166,7 @@ strings, prepares each scalar result once, destroys the compiler, reserves
 one prefixed stack, and repeatedly calls the prepared handles:
 
 ```cpp
-std::array<std::string_view, 3> decoded{"2+3", "10-4", "sqrt(81)"};
+std::array<std::string_view, 3> decoded{"2.0+3.0", "10.0-4.0", "3.0*3.0"};
 auto programs = client::compile_decoded(decoded);
 cel::raw_stack stack;
 stack.push(true);

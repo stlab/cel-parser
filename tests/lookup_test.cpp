@@ -281,35 +281,13 @@ TEST_CASE("retained operators use IEEE arithmetic and partial comparisons") {
     CHECK(operation<double>(lookup, "+", 2.0, 3.0) == -1.0);
 }
 
-TEST_CASE("standard numeric names are opt-in and preserve Rust method semantics") {
+TEST_CASE("standard numeric names are not parser-provided operations") {
     cel::op_lookup lookup;
-    CHECK_THROWS_AS(operation<double>(lookup, "abs", -3.0), cel::parse_error);
-    cel::install_standard_library(lookup);
-    const double nan = std::numeric_limits<double>::quiet_NaN();
-    CHECK(operation<double>(lookup, "min", nan, 3.0) == 3.0);
-    CHECK(operation<double>(lookup, "max", 3.0, nan) == 3.0);
-    CHECK(std::isnan(operation<double>(lookup, "min", nan, nan)));
-    CHECK(operation<double>(lookup, "clamp", 7.0, 1.0, 3.0) == 3.0);
-    CHECK_THROWS_WITH(operation<double>(lookup, "clamp", 1.0, 3.0, 2.0), "invalid clamp bounds");
-    CHECK_THROWS_WITH(operation<double>(lookup, "clamp", 1.0, nan, 2.0), "invalid clamp bounds");
-    CHECK(operation<double>(lookup, "abs", -3.0) == 3.0);
-    CHECK(operation<double>(lookup, "signum", -0.0) == -1.0);
-    CHECK(operation<double>(lookup, "signum", 0.0) == 1.0);
-    CHECK(std::isnan(operation<double>(lookup, "signum", nan)));
-    CHECK(operation<double>(lookup, "sqrt", 4.0) == 2.0);
-    CHECK(std::isnan(operation<double>(lookup, "sqrt", -1.0)));
-    CHECK(operation<double>(lookup, "floor", -1.2) == -2.0);
-    CHECK(operation<double>(lookup, "ceil", -1.2) == -1.0);
-    CHECK(operation<double>(lookup, "trunc", -1.2) == -1.0);
-    CHECK(operation<double>(lookup, "fract", -1.5) == -0.5);
-    CHECK(operation<double>(lookup, "round_ties_even", 2.5) == 2.0);
-    CHECK(operation<double>(lookup, "round_ties_even", 3.5) == 4.0);
-    CHECK_THROWS_AS(cel::install_standard_library(lookup), std::invalid_argument);
-    cel::dyn_segment call;
-    lookup.apply("abs", call, 0, {});
-    call.just(cel::value::from(-7.0));
-    lookup.apply("()", call, 2, {});
-    CHECK(evaluate<double>(std::move(call)) == 7.0);
+    for (auto name : {"min", "max", "clamp", "abs", "signum", "sqrt", "floor", "ceil", "trunc",
+                      "fract", "round_ties_even"}) {
+        CAPTURE(name);
+        CHECK_THROWS_AS(operation<double>(lookup, name, -3.0), cel::parse_error);
+    }
 }
 
 TEST_CASE("owned names schemas and scope captures survive registration input destruction") {
@@ -481,26 +459,6 @@ TEST_CASE("range emitters and casts preserve exact retained types and diagnostic
     cel::dyn_segment empty;
     CHECK_THROWS_AS(lookup.apply_cast("f64", empty, {}), cel::parse_error);
     CHECK_THROWS_AS(operation<double>(lookup, "range", true, false), cel::parse_error);
-}
-
-TEST_CASE("standard rounding and IEEE helpers handle infinities and signed zeros") {
-    cel::op_lookup lookup;
-    cel::install_standard_library(lookup);
-    const auto infinity = std::numeric_limits<double>::infinity();
-    CHECK(std::isnan(operation<double>(lookup, "fract", infinity)));
-    CHECK(std::isinf(operation<double>(lookup, "round_ties_even", infinity)));
-    CHECK(std::signbit(operation<double>(lookup, "round_ties_even", -0.5)));
-    CHECK(operation<double>(lookup, "round_ties_even", -1.5) == -2.0);
-    CHECK(operation<double>(lookup, "round_ties_even", -2.5) == -2.0);
-    CHECK_FALSE(std::signbit(operation<double>(lookup, "abs", -0.0)));
-    CHECK(std::signbit(operation<double>(lookup, "sqrt", -0.0)));
-    CHECK(std::isnan(operation<double>(lookup, "clamp", std::numeric_limits<double>::quiet_NaN(),
-                                       -infinity, infinity)));
-    const auto old_rounding = std::fegetround();
-    std::fesetround(FE_UPWARD);
-    const auto halfway = operation<double>(lookup, "round_ties_even", 2.5);
-    std::fesetround(old_rounding);
-    CHECK(halfway == 2.0);
 }
 
 TEST_CASE("zero-argument functions skip value scopes during direct operation selection") {

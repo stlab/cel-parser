@@ -36,7 +36,7 @@ cpp_library_setup(
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
     TESTS tests.cpp lookup_test.cpp type_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
-        cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp
+        cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp standard_library_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp
     DOCS_INPUTS README.md docs/lexical-contract.md docs/evidence.md
         docs/lookup-contract.md docs/builtin-census.md docs/expression-grammar.md
@@ -86,7 +86,7 @@ if(CEL_PARSER_ENABLE_PARITY)
     if(NOT BUILD_TESTING)
         message(FATAL_ERROR "Parity requires BUILD_TESTING")
     endif()
-    foreach(package cel-parser cel-runtime cel-std)
+    foreach(package cel-parser cel-runtime)
         if(NOT EXISTS "${CEL_PARSER_REFERENCE_SOURCE}/${package}/Cargo.toml")
             message(FATAL_ERROR "Enabled parity requires CEL_PARSER_REFERENCE_SOURCE with ${package}")
         endif()
@@ -104,8 +104,8 @@ if(CEL_PARSER_ENABLE_PARITY)
     add_executable(parity_driver tools/parity/driver.cpp)
     target_link_libraries(parity_driver PRIVATE cel::parser)
     set_target_properties(parity_driver PROPERTIES CXX_EXTENSIONS OFF)
-    add_test(NAME parity_comparator COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/parity/test_harness.py")
+    add_test(NAME parity_comparator COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+        -s "${CMAKE_CURRENT_SOURCE_DIR}/tools/parity" -p "test_*.py")
     add_test(NAME differential COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/parity/harness.py"
         --cpp "$<TARGET_FILE:parity_driver>"

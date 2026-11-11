@@ -41,15 +41,15 @@ int main(int argc, char** argv) try {
         throw std::invalid_argument("usage: measurement [ITERATIONS]");
     }
     const auto scalars = client::compile_decoded(
-        std::array<std::string_view, 2>{"2+3*4+(81).sqrt()", "2+3*4+sqrt(81)"});
+        std::array<std::string_view, 2>{"2.0+3.0*4.0+9.0", "(||2.0+3.0*4.0+9.0)()"});
     const auto composite = [] {
         cel::parser compiler(cel::op_lookup{});
-        return compiler.parse_str("[[1,2],[3,4]]");
+        return compiler.parse_str("[[1.0,2.0],[3.0,4.0]]");
     }();
     const auto typed_composite = composite.prepare<std::vector<std::vector<double>>>();
     const auto factory = [] {
         cel::parser compiler(cel::op_lookup{});
-        return compiler.parse_str("|x:f64|x*2+1");
+        return compiler.parse_str("|x:f64|x*2.0+1.0");
     }();
     cel::raw_stack stack;
     stack.push(true);
@@ -59,7 +59,7 @@ int main(int argc, char** argv) try {
     const std::array arguments{cel::value::from(2.0)};
     std::cout << "workload,iterations,nanoseconds,result_sum\n";
     measure("prepared-scalar", iterations, 23, [&] { return scalars[0].call(stack); });
-    measure("named-scalar-aggregate-retirement", iterations, 23,
+    measure("prepared-closure-aggregate-retirement", iterations, 23,
             [&] { return scalars[1].call(stack); });
     measure("prepared-owning-nested-array", iterations, 4,
             [&] { return typed_composite.call(stack)[1][1]; });

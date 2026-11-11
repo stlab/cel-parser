@@ -4,6 +4,9 @@
 #include <tuple>
 #include <vector>
 
+/// Identifies the client's named identity operation.
+struct function_marker {};
+
 /// Executes cached owned callbacks and complete composites through installed packages only.
 int main() try {
     cel::dyn_segment builder;
@@ -18,10 +21,11 @@ int main() try {
     cel::raw_stack stack;
     if (prepared.call(stack, 4.0) != 7.0 || prepared.call(stack, 5.0) != 8.0) return 1;
     cel::op_lookup lookup;
-    cel::install_standard_library(lookup);
+    lookup.register_function("identity", function_marker{});
+    lookup.register_op<double, double>("identity", [](double x) { return x; });
     cel::dyn_segment named;
-    lookup.apply("abs", named, 0, {});
-    named.just(cel::value::from(-4.0));
+    lookup.apply("identity", named, 0, {});
+    named.just(cel::value::from(4.0));
     lookup.apply("()", named, 2, {});
     if (std::move(named).finish().prepare<double>().call(stack) != 4.0) return 2;
     using nested = std::tuple<bool, std::vector<std::tuple<double, std::vector<bool>>>>;

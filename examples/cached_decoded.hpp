@@ -12,7 +12,6 @@ namespace client {
 inline std::vector<cel::prepared_segment<double>> compile_decoded(
     std::span<const std::string_view> expressions) {
     cel::op_lookup lookup;
-    cel::install_standard_library(lookup);
     cel::parser compiler(std::move(lookup));
     std::vector<cel::prepared_segment<double>> result;
     result.reserve(expressions.size());

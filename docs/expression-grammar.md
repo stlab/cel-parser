@@ -1,9 +1,9 @@
 # Expression grammar and emission {#expression_grammar}
 
 This reference lets C++ clients compile the retained CEL language and lets
-maintainers compare its productions with executable Rust consumers. The
-[P4 closure](p4-handoff.md) maps productions to actual comparisons and
-independent public adaptation contracts.
+maintainers compare its productions with executable Rust consumers. The C++ core
+must accept only expressions accepted by Rust with corresponding bindings.
+See [exact-source validation](validation.md) for the differential gate.
 
 The source baseline is Rust commit
 `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`. All Rust paths in the table are
@@ -31,7 +31,6 @@ The following productions choose alternatives from the current token:
 | `unary_expression` | `("-" \| "!") unary \| postfix`; no unary plus | `lib.rs:1719–1744` | Reverse prefix emission after iterative token collection |
 | `postfix_expression` | `primary { arguments \| "." (identifier [arguments] \| selector) }` | `lib.rs:1794–1876` | Ordinary `"()"` counts callee plus arguments; member counts receiver plus arguments |
 | Tuple selector | Unsuffixed integer with radix/underscores, or decimal token split on dot for `.0.1`; exponent text/suffixes cannot become indices | `lib.rs:1828–1870` | Checked raw-spelling integer conversion, `project_tuple`; never convert the f64 value |
-| Array index | Additional postfix `[expression]` | Rust has no bracket postfix at `lib.rs:1782–1784` | **Approved C++ adaptation**, `index_array` |
 | `primary_expression` | Literal, identifier, `if`, `(`, `[`; `else`/`as` are not value names | `lib.rs:1954–2003` | `just`, zero-argument lookup, conditional/aggregate productions |
 | `record_fields` | `Name "{" [ identifier ":" expression { "," identifier ":" expression } ] "}"` | `lib.rs:2006–2071` | Complete nominal schema, source-order evaluation, schema permutation, `make_record` |
 | `tuple_or_group` | `()` unit; `(expression)` grouping; `(expression,)` singleton; multi-item tuple forbids trailing comma | `lib.rs:2075–2160` | `make_tuple`, except grouping passes through |
@@ -42,7 +41,9 @@ The following productions choose alternatives from the current token:
 | `type_expression` | Existing P2 complete prefix type production | `lib.rs:2252–2259` | `parse_type`; semantic declarations are not owners |
 
 Every consumed list comma requires another item, except the required comma of a
-singleton tuple. The executable closure consumer requires a parameter after a
+singleton tuple. Numeric values require floating syntax; integer literals are
+not converted to f64. Postfix brackets are not a core expression alternative.
+The executable closure consumer requires a parameter after a
 single opening `|`; use `||` for zero parameters. It does not accept a separated
 empty `| |` even though an older prose production displays an optional list.
 An identifier after `..` commits to endpoint parsing; reserved `else`/`as`
@@ -79,10 +80,12 @@ The following cases in `tests/expression_test.cpp` cover the implementation:
 | Case-name prefix | Production and boundary coverage |
 | --- | --- |
 | `retained precedence` | Arithmetic, all comparisons, casts, unary operators, IEEE numbers, unsupported signatures |
-| `standard numeric names` | All eleven opt-in functions, ordinary and member dispatch, callback errors |
+| `numeric values require` | Integer/suffix/radix value rejection, valid floating values, retained integer tuple selectors |
+| `core lookup does not` | Standard-library function names are absent |
 | `tuple group unit` | All group/tuple/unit alternatives, nested arrays, whole-array annotations, strict separators |
 | `tuple selectors` | Integer radices/underscores, decimal-token splitting, suffix/exponent/overflow rejection |
-| `explicit C++ array indexing` | Nested postfix indexing, checked invalid categories, prefix cleanup |
+| `postfix brackets remain` | Full-method rejection and unconsumed host brackets in prefix parsing |
+| `complete expressions reject` | Nested and typed-array bracket suffix rejection |
 | `all six range forms` | Complete form identity, endpoint order, low precedence, malformed inclusive forms |
 | `lazy branches` | Both lazy operators, conditionals/else-if/implicit unit, no compile-time callback execution, selected exceptions |
 | `registered names` | First marker, receiver operations, source-order nominal fields and canonical permutation |
@@ -98,11 +101,11 @@ The following cases in `tests/expression_test.cpp` cover the implementation:
 and `tests/installed_consumer/compiler.cpp` exercises the public installed
 compiler and runtime together.
 
-P4 fixtures cover every retained production family. Deliberate adaptations
-remain bool/f64 scalar availability, unsuffixed-number typing, public canonical
-record carriers, checked double array indexing, C++ exceptions, and byte-based
-text spans. No floating range iteration, universal aggregate equality,
-additional scalar coercions, or standard helper names are implied.
+The differential fixtures cover retained production families with identical
+sources. Narrower scalar/parameter availability, canonical record carriers,
+C++ exceptions, and byte-based text spans do not authorize additional accepted
+syntax. The parser supplies no standard-library functions, implicit numeric
+coercions, floating range iteration, or universal aggregate equality.
 
 ## Compilation and lifetime contract
 

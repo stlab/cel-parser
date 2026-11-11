@@ -14,7 +14,7 @@
 
 TEST_CASE("full stack umbrella compiles and executes with caller storage") {
     cel::parser parser(cel::op_lookup{});
-    auto bound = parser.parse_str("1 + 2").prepare<double>();
+    auto bound = parser.parse_str("1.0 + 2.0").prepare<double>();
     cel::raw_stack stack;
     CHECK(bound.call(stack) == 3.0);
 }

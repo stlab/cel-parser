@@ -7,9 +7,13 @@ import subprocess
 
 
 def prepare(source, build):
-    """Creates a separate manifest and fails when required public packages/tools are missing."""
+    """Builds core packages from canonical paths and locks completed manifest transitions.
+
+    Seeds changed or unfinished manifests from the canonical lockfile. Repeated successful
+    preparations require the generated resolved lock unchanged. Never writes the source checkout.
+    """
     source, build = Path(source).resolve(), Path(build).resolve()
-    for package in ("cel-parser", "cel-runtime", "cel-std"):
+    for package in ("cel-parser", "cel-runtime"):
         if not (source / package / "Cargo.toml").is_file():
             raise FileNotFoundError(f"required Rust reference package: {source / package}")
     if not (source / "Cargo.lock").is_file():
@@ -21,7 +25,7 @@ def prepare(source, build):
     driver = Path(__file__).with_name("reference.rs").resolve()
     dependencies = "\n".join(
         f'{p} = {{ path = {json.dumps(str(source / p))} }}'
-        for p in ("cel-parser", "cel-runtime", "cel-std"))
+        for p in ("cel-parser", "cel-runtime"))
     manifest = (
         '[package]\nname = "cel-parity-reference"\nversion = "0.0.0"\n'
         'edition = "2024"\n[workspace]\n[dependencies]\nanyhow = "1.0"\n'
@@ -29,13 +33,16 @@ def prepare(source, build):
         + json.dumps(str(driver)) + '\n')
     (build / "Cargo.toml").write_text(manifest, encoding="utf-8")
     lock = build / "Cargo.lock"
-    initialized = lock.is_file()
+    completed = build / ".prepared-manifest"
+    initialized = (lock.is_file() and completed.is_file()
+                   and completed.read_text(encoding="utf-8") == manifest)
     if not initialized:
         shutil.copyfile(source / "Cargo.lock", lock)
     command = [cargo, "build", "--manifest-path", str(build / "Cargo.toml"), "--release"]
     if initialized:
         command.append("--locked")
     subprocess.run(command, check=True)
+    completed.write_text(manifest, encoding="utf-8")
 
 
 def main():

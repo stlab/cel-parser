@@ -101,6 +101,17 @@ fn type_name(ty: &ValueType) -> Result<String> {
             } else if *id == TypeId::of::<std::ops::RangeFull>() {
                 "RangeFull()".into()
             } else {
+                // Wider Rust scalars still need complete records for checked C++ rejections.
+                macro_rules! wider {
+                    ($($t:ty),*) => {$(
+                        if *id == TypeId::of::<$t>() {
+                            return Ok(stringify!($t).into());
+                        }
+                    )*};
+                }
+                wider!(
+                    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32
+                );
                 bail!(
                     "fixture uses an unregistered public leaf: {}",
                     ty.type_name()
@@ -180,6 +191,7 @@ fn value(owner: OwnedValue) -> Result<String> {
             candidate!(ArrayOf<Leaf<bool>>);
             candidate!(FnOf<Nil, Leaf<f64>>);
             candidate!(FnOf<Nil, FnOf<Nil, Leaf<f64>>>);
+            candidate!(FnOf<Cons<Leaf<f64>, Nil>, Leaf<bool>>);
             candidate!(Cons<ArrayOf<FnOf<Nil, Leaf<f64>>>, Cons<Leaf<bool>, Nil>>);
             bail!("no public test witness for {}", type_name(&ty)?)
         }
@@ -252,6 +264,17 @@ fn value(owner: OwnedValue) -> Result<String> {
             if *id == TypeId::of::<std::ops::RangeFull>() {
                 return Ok("[]".into());
             }
+            // Serialize through checked public conversions, never raw carrier storage.
+            macro_rules! wider {
+                ($($t:ty),*) => {$(
+                    if *id == TypeId::of::<$t>() {
+                        return Ok(owner.try_into_typed::<Leaf<$t>>()?.to_string());
+                    }
+                )*};
+            }
+            wider!(
+                i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32
+            );
             bail!("unsupported fixture value")
         }
     }
@@ -275,13 +298,13 @@ fn operation(
         emit,
     })
 }
-/// Builds source-bound records, callbacks, and scope selectors through public registration.
+/// Returns fresh intrinsics for core/default or matching client records, callbacks, and scopes.
 ///
 /// - Complexity: O(registration and descriptor work).
 fn lookup(setup: &str, trace: &Arc<Mutex<Vec<f64>>>) -> Result<OpLookup> {
     let mut result = OpLookup::new();
-    if setup != "default" {
-        cel_std::install(&mut result);
+    if setup == "core" || setup == "default" {
+        return Ok(result);
     }
     let d = scalar::<f64>("f64");
     let b = scalar::<bool>("bool");
@@ -575,6 +598,9 @@ fn run(setup: &str, source: &str) -> Result<()> {
         }
         cel_parser::resolve_builtin_named_type(name, args)
     });
+    if setup == "core" || setup == "default" {
+        parser.set_type_resolver(cel_parser::resolve_builtin_named_type);
+    }
     let mut program = match parser.parse_str(source) {
         Ok(program) => program,
         Err(error) => {
@@ -612,8 +638,6 @@ fn run(setup: &str, source: &str) -> Result<()> {
             Err(error) => {
                 if setup == "callback_error" && error.downcast_ref::<CallbackError>().is_some() {
                     response = "runtime\tcallback".into();
-                } else if setup == "clamp_error" && error.to_string() == "invalid clamp bounds" {
-                    response = "runtime\tclamp".into();
                 } else {
                     return Err(error);
                 }
@@ -642,11 +666,33 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     use cel_runtime::IntoCStackList;
+    /// Observes wider Rust scalar values when C++ deliberately rejects their syntax.
+    #[test]
+    fn wider_scalar_rejections_still_have_complete_oracle_records() {
+        let integer = OwnedValue::new::<Leaf<i32>>(2);
+        assert_eq!(type_name(integer.value_type()).unwrap(), "i32");
+        assert_eq!(value(integer).unwrap(), "2");
+        let float = OwnedValue::new::<Leaf<f32>>(1.5);
+        assert_eq!(type_name(float.value_type()).unwrap(), "f32");
+        assert_eq!(value(float).unwrap(), "1.5");
+    }
+    /// Leaves core lookup free of client callbacks and registered record names.
+    #[test]
+    fn core_lookup_has_no_client_or_standard_bindings() {
+        let trace = Arc::new(Mutex::new(Vec::new()));
+        let mut core = CELParser::new(lookup("core", &trace).unwrap());
+        assert!(core.parse_str("1.0f64+2.0f64").is_ok());
+        for source in ["sqrt(4.0f64)", "tap(1.0f64)", "Pair{x:1.0f64,y:2.0f64}"] {
+            assert!(core.parse_str(source).is_err());
+        }
+        let mut client = CELParser::new(lookup("client", &trace).unwrap());
+        assert!(client.parse_str("tap(1.0f64)").is_ok());
+    }
     /// Rejects a stable result whose first successful execution changes its trace.
     #[test]
     fn cached_execution_checks_every_trace() {
         assert!(run("unstable_trace_first", "traceprobe").is_err());
-        assert!(run("std", "tap(1f64)").is_ok());
+        assert!(run("client", "tap(1.0f64)").is_ok());
     }
     /// Rejects a stable result whose second successful execution changes its trace.
     #[test]

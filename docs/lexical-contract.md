@@ -84,8 +84,13 @@ Rust LexLexer attribute handler.
 
 ## Numbers and punctuation
 
-Only bool and binary64 are built-in scalars. Unsuffixed integer and decimal
-spellings produce binary64 values. The only accepted suffix is `f64`; `f32`,
+Only bool and binary64 are built-in value types. The expression parser accepts
+floating forms such as `1.0`, `1e0`, and `1.0f64`, and rejects integer value
+forms, including `1`, radix integers, and `1f64`. Integer tokens remain available
+to lexical consumers and tuple selectors; their converted binary64 payload
+does not change their syntax classification.
+
+The text lexer retains integer and decimal tokens. Its only accepted suffix is `f64`; `f32`,
 integer suffixes, and arbitrary identifier suffixes are unsupported literals.
 Decimal, binary `0b`, octal `0o`, and hexadecimal `0x` spellings retain their
 source spelling and underscores. Radix prefixes are lowercase. The producer's
@@ -99,7 +104,8 @@ digits take precedence over suffix interpretation: `0xff64` is an unsuffixed
 hexadecimal integer, not an `f64`-suffixed number.
 
 `numeric_form` records integer, dotted decimal, or exponent syntax separately
-from the scalar value. `1` still has binary64 value `1.0`. Preserve
+from the converted payload. The token for `1` has payload `1.0`, but the core
+expression parser rejects it in a value position. Preserve
 `numeric_literal::spelling` when implementing structural projection: `.0.1`
 emits `.` followed by decimal token `0.1`. The expression parser must interpret
 that raw decimal spelling as two chained tuple selectors, reject exponent and

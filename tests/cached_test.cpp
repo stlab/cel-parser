@@ -5,8 +5,8 @@
 
 TEST_CASE("decoded scalar clients retain prepared programs and preserve caller prefixes") {
     const auto programs = [] {
-        const std::array<std::string, 3> decoded{"2f64+\n3f64*4f64", "if false {0f64} else {9f64}",
-                                                 "(|| 7f64)()"};
+        const std::array<std::string, 3> decoded{
+            "2.0f64+\n3.0f64*4.0f64", "if false {0.0f64} else {9.0f64}", "(|| 7.0f64)()"};
         return client::compile_decoded(
             std::array<std::string_view, 3>{decoded[0], decoded[1], decoded[2]});
     }();
@@ -21,8 +21,8 @@ TEST_CASE("decoded scalar clients retain prepared programs and preserve caller p
     }
     CHECK(stack.pop<bool>());
     CHECK(client::compile_decoded({}).empty());
-    CHECK_THROWS_AS(client::compile_decoded(std::array<std::string_view, 1>{"[1f64]"}),
+    CHECK_THROWS_AS(client::compile_decoded(std::array<std::string_view, 1>{"[1.0f64]"}),
                     std::invalid_argument);
-    CHECK_THROWS_AS(client::compile_decoded(std::array<std::string_view, 1>{"1f64+"}),
+    CHECK_THROWS_AS(client::compile_decoded(std::array<std::string_view, 1>{"1.0f64+"}),
                     cel::parse_error);
 }

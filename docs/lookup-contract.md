@@ -4,6 +4,11 @@ This reference helps library clients register owned operations and parse complet
 types through `cel::parser`. See the [expression grammar](expression-grammar.md)
 for expression syntax and compilation.
 
+`op_lookup` supplies intrinsic operators, identity casts, and full-range
+construction, not a standard library. Separate supplied libraries must match
+their Rust counterparts. Corresponding client bindings use the same names,
+argument/result types, and semantics.
+
 ## Ownership and exact registration
 
 `op_lookup` owns names, record schemas, scope callbacks, and operation emitters.
@@ -77,6 +82,9 @@ Scopes may handle nonzero-arity direct operations before registrations.
 Canonical named record projection follows custom operation, structural, and
 built-in precedence as a fallback. Projection uses the registered record schema,
 not a native field layout.
+
+The matching Rust registration includes both the record schema and explicit
+unary field-accessor operations. A Rust schema alone does not install accessors.
 
 <!-- [knowledge]
 Preserve schema-based record projection as the C++ carrier adaptation of Rust's

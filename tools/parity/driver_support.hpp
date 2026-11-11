@@ -27,6 +27,9 @@ std::string trace_text(const std::vector<double>& trace);
 /// Executes one configured request after destroying its compiler.
 /// Complexity: O(compilation + three executions + serialization).
 void run(request input);
+/// Returns fresh intrinsics for core/default, otherwise installs matching client fixtures.
+/// Complexity: O(registration and metadata work).
+cel::op_lookup lookup(std::string_view setup, std::vector<double>& trace);
 
 /// Executes and observes three cached calls with identical normalized types, values, and traces.
 /// Execute returns an owning public value; observe and prefix check it and caller state.
@@ -48,16 +51,6 @@ std::string evaluate_cached(std::string_view setup,
         } catch (const callback_error&) {
             if (setup != "callback_error") throw;
             return "runtime\tcallback\t" + trace_text(trace);
-        } catch (const std::invalid_argument& error) {
-            if (setup != "clamp_error" || std::string_view(error.what()) != "invalid clamp bounds")
-                throw;
-            return "runtime\tclamp\t" + trace_text(trace);
-        } catch (const std::out_of_range& error) {
-            const std::string_view witness(error.what());
-            if (setup != "index_error" || (witness != "invalid floating array index" &&
-                                           witness != "array index out of bounds"))
-                throw;
-            return "runtime\tindex\t" + trace_text(trace);
         }
         const auto next = observe(*object) + '\t' + trace_text(trace);
         if (repeat && response != next) throw std::logic_error("cached result or trace changed");

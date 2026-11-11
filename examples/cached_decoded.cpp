@@ -6,7 +6,7 @@
 /// JSON transport/decoding remains the application's responsibility.
 int main() try {
     const auto programs = client::compile_decoded(
-        std::array<std::string_view, 3>{"2f64+3f64*4f64", "sqrt(81f64)", "(|| 7f64)()"});
+        std::array<std::string_view, 3>{"2.0f64+3.0f64*4.0f64", "3.0*3.0", "(|| 7.0f64)()"});
     cel::raw_stack stack;
     stack.push(true);
     client::reserve(programs, stack);

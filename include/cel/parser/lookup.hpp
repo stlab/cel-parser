@@ -160,7 +160,7 @@ class op_lookup {
 
 public:
     /// Creates only core operators, casts, and the persistent full-range constructor.
-    /// Standard numeric function names require install_standard_library().
+    /// Standard-library functions are separate client registrations.
     /// Complexity: O(retained signature count) metadata and callback storage.
     op_lookup();
     /// Disallows copying this registry.
@@ -320,14 +320,6 @@ public:
     /// Example: lookup.apply_cast("f64", builder, source_span{0, 8}).
     void apply_cast(std::string_view target, dyn_segment& builder, source_span span) const;
 };
-
-/// Installs the eleven retained standard numeric names and f64 signatures explicitly.
-/// Installs min, max, clamp, abs, signum, sqrt, floor, ceil, trunc, fract, and round_ties_even.
-/// Independent disjoint client overloads compose; reinstalling a signature throws invalid_argument.
-/// Failure leaves a safely discardable, possibly partially installed lookup.
-/// Complexity: O(installed signatures * existing overloads * compared metadata).
-/// Example: op_lookup lookup; install_standard_library(lookup).
-void install_standard_library(op_lookup& lookup);
 
 /// type_expression = identifier [ "(" [ type_expression { "," type_expression } ] ")" ]
 /// | "[" type_expression "]" | "(" [ type_expression [ "," [ type_expression
