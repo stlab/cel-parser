@@ -168,8 +168,7 @@ and preserved prefix. Run it with `build/test/cached_decoded`.
 
 Preparation avoids repeated result-type matching. Reservation covers known
 stack requirements, not arbitrary callback allocations or composite payloads.
-Direct scalar arithmetic/member dispatch has a measured zero-allocation warmed
-path. Named calls currently pack and retire an owning marker/result tuple even
+Named calls pack and retire an owning marker/result tuple even
 when their result is scalar. Composite returns and dynamic invocation have
 separate ownership/staging costs. See [validation and measurement](docs/validation.md).
 

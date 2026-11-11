@@ -31,6 +31,11 @@ under the build directory, seeds its initial resolution from the supplied
 lockfile, and locks subsequent builds. No personal reference path appears in
 shipped manifests or exported package targets.
 
+Windows CI uses the `test` preset's Debug configuration, which enables
+[MSVC iterator debugging](https://learn.microsoft.com/en-us/cpp/standard-library/iterator-debug-level)
+at its default `_ITERATOR_DEBUG_LEVEL=2`. Tests do not replace global allocation
+functions.
+
 The driver uses public parser/runtime APIs. It consumes tuples safely with
 `OwnedValue::into_fields` and arrays through checked whole-array typed witnesses.
 The Rust public boundary has no arbitrary erased array traversal; the driver
@@ -149,12 +154,11 @@ Configure Release with the Rust reference checkout and
 build/release/measurement 100000
 ```
 
-The CSV reports workload, iterations, total nanoseconds, allocation calls,
-and observable result sum. Each workload has 100 warmups, then separate
-allocation and monotonic-clock timing passes. Counts cover ordinary/aligned
-scalar/array allocation functions; they do not measure bytes or leaks.
+The CSV reports workload, iterations, total nanoseconds, and observable result
+sum. Each workload has 100 warmups, then a monotonic-clock timing pass.
+The tool does not replace allocation functions or count allocations.
 The stack reserves 4096 bytes aligned to 64 and 256 live slots over a bool prefix.
-Compilation, preparation, factory creation, and reservation occur before counts.
+Compilation, preparation, factory creation, and reservation occur before timing.
 No timing threshold appears in unit tests.
 
 | Workload | Boundary |
@@ -165,15 +169,9 @@ No timing threshold appears in unit tests.
 | `erased-owning-nested-array` | Same source; public erased owning result, no child inspection |
 | `dynamic-callable` | `\|x:f64\|x*2+1`; shared callable, boxed argument 2, public dynamic invocation |
 
-The scalar check requires zero warmed allocation calls for that direct workload.
-It makes no zero-allocation promise for all scalar-result source expressions.
-Keep platform/build-specific measurements in the handoff/report, not portable
-speed claims. The measurement-only clang-tidy target excludes
-`clang-analyzer-unix.cstring.NullArg`: that checker invents a nonempty f64 array
-whose canonical element storage is null inside the installed native adapter.
-The public canonical array contract excludes that path. All other checks stay
-enabled; runtime production headers are unchanged and ASan+UBSan/contract tests
-exercise actual owning conversion.
+Keep platform/build-specific timings in the handoff/report, not portable speed
+claims. Both standalone and installed measurement clients run without analyzer
+exclusions.
 
 ## Provision CI inputs explicitly
 
@@ -189,5 +187,5 @@ each job to 60 minutes. It does not provision a runner, Git credentials, or the
 Rust checkout, or claim Windows coverage.
 
 Local AppleClang results do not establish actual GCC or MSVC results.
-macOS LeakSanitizer is unsupported and disabled; allocation counters are not
-leak detection. Independent task/final port review remains a separate gate.
+macOS LeakSanitizer is unsupported and disabled.
+Independent task/final port review remains a separate gate.

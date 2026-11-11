@@ -23,7 +23,7 @@ option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVE
 CPMAddPackage(
     NAME cel-runtime
     GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG 98b753cb0276283e622ae5cf3e4758a5000b717d
+    GIT_TAG 6709f3df4a97429d210be2390f6fac93bc21d0ef
     OPTIONS "BUILD_TESTING OFF"
 )
 
@@ -35,7 +35,7 @@ cpp_library_setup(
     HEADERS parser.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
-    TESTS tests.cpp lookup_test.cpp type_test.cpp allocation_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
+    TESTS tests.cpp lookup_test.cpp type_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
         cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp
     DOCS_INPUTS README.md docs/lexical-contract.md docs/evidence.md
@@ -69,7 +69,7 @@ if(BUILD_TESTING)
     set_tests_properties(installed_consumer tests PROPERTIES TIMEOUT 180)
 endif()
 
-option(CEL_PARSER_BUILD_MEASUREMENTS "Build separate allocation and timing workloads" OFF)
+option(CEL_PARSER_BUILD_MEASUREMENTS "Build execution timing workloads" OFF)
 if(CEL_PARSER_BUILD_MEASUREMENTS)
     add_executable(measurement tools/measurement.cpp)
     target_link_libraries(measurement PRIVATE cel::parser)

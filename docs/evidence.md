@@ -136,4 +136,4 @@ boundaries, compound separation, producer cursor termination, and static
 non-clonability. The differential tooling normalizes only named, documented
 adapter fixtures rather than incidental exception messages. See
 [validation](validation.md) for configuration, diagnostic rulings,
-installed clients, and warmed allocation/timing boundaries.
+installed clients, and warmed timing boundaries.

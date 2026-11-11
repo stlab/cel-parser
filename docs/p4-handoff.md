@@ -30,9 +30,9 @@ below add comparisons without claiming exhaustive enumeration of infinite types.
 | Text/Unicode/doc/numeric spelling and resource bounds | Independent public C++ adaptation tests | `tests.cpp`, recursive-expression resource case, compile-fail cursor/parser fixtures | High locally; no false proc-macro text-lexer equivalence |
 | Bracket indexing and finite integral bounds | Explicit C++ adaptation | `cpp-adaptations`; `explicit C++ array indexing validates before structural access`; runtime index/prefix cases | High; Rust has no bracket-postfix syntax |
 | Removed integers/f32/strings, bitwise/casts/helpers, wrong nominal types | Excluded with public rejection tests | Census removed rows; lexer/type/lookup/expression tests; `type-lookup-errors` | High; no invented conversions/names |
-| Ownership binding, resource overflow, allocation rollback, callable exclusion/reentry | Equivalent public runtime contract paths | Runtime parity ledger and callable/composite/resource tests; typed empty Fn fixtures | High; not relabeled as differential raw-storage tests |
+| Ownership binding, resource overflow, callable exclusion/reentry | Equivalent public runtime contract paths | Runtime parity ledger and callable/composite/resource tests; typed empty Fn fixtures | High; not relabeled as differential raw-storage tests |
 | Installed headers/artifacts and decoded cache/composites/callables | Package-only clients | `installed_consumer` and its five nested clients | High locally; no remote package publication |
-| Allocation/timing boundaries | Separate Release passes | `measurement` CSV and `measurement_contracts` | Local only; not portable speed or leak claims |
+| Timing boundaries | Warmed Release execution | `measurement` CSV and `measurement_contracts` | Local only; not portable speed or leak claims |
 | Required CI inputs and fail-closed local parity | Configuration plus negative checks | `provisioned-validation.yml`, CMake parity requirements, harness tests | Local only; runner/hosting and remote execution pending |
 
 ## Corrections and remaining boundaries
@@ -70,6 +70,9 @@ installation passes all five consumer tests. The Rust driver passes three
 tests, formatting, and all-target clippy with warnings denied. Both strict
 Doxygen targets pass with `WARN_AS_ERROR=YES`.
 
+The historical snapshot used allocation instrumentation that has been removed.
+The maintained measurement tool reports timing only.
+
 Release uses `-O3 -DNDEBUG`, C++20, and no fast-math. One representative warmed
 snapshot records these separate passes; it is not a statistical benchmark:
 
@@ -81,8 +84,8 @@ snapshot records these separate passes; it is not a statistical benchmark:
 | Erased owning nested array | 100000 | 61291250 | 1100000 |
 | Dynamic callable | 100000 | 27485916 | 400000 |
 
-See [measurement boundaries](validation.md) for warmup, reservation, result
-checks, and the bounded measurement-target analyzer exclusion. Missing source,
+See [measurement boundaries](validation.md) for warmup, reservation, and result
+checks. Missing source,
 disabled tests, absent drivers/Cargo, and disabled Python assertions all fail
 explicitly in local negative checks. Generated and manual remote workflows
 remain unexecuted; GCC/MSVC and macOS LSan remain unavailable.
