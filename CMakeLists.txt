@@ -42,6 +42,7 @@ cpp_library_setup(
         docs/lookup-contract.md docs/builtin-census.md docs/expression-grammar.md
         docs/validation.md docs/p4-handoff.md
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+        "EXCLUDE_SYMBOLS = cel::detail cel::detail::* cel::parser_detail cel::parser_detail::*"
         "FULL_PATH_NAMES = NO"
         "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"
         "STRIP_FROM_INC_PATH = ${CMAKE_CURRENT_SOURCE_DIR}/include"

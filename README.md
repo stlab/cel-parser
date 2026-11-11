@@ -132,6 +132,10 @@ the owned lexer directly, not a second token vector. `parse_tokens` compiles
 a complete borrowed flattened stream; `parse_expression(token_cursor&)`
 compiles a prefix and leaves its following host token. Full methods reject
 trailing input. EOF/error tokens terminate an external producer stream.
+Programs retain values, descriptors, and emitted runtime callbacks, not references
+inside client captures. Custom scopes and emitters must retain any state their
+emitted code needs. Compilation invokes scopes and emitters, not the emitted
+runtime operations.
 
 CEL groups opened inside an expression must close with the same visible kind.
 Inline parsing doesn't consume or validate its surrounding host group;

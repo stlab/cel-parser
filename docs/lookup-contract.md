@@ -31,8 +31,12 @@ and ownership representations remain distinct. Equal layout and display names
 never establish compatibility. Core type names, including removed scalar names,
 are reserved against client replacement.
 
-Compiled runtime code retains required captures and metadata after the lookup
-dies. Sharing capture ownership doesn't make mutable callback state thread-safe.
+`register_op` retains its runtime callback in emitted code after the lookup dies.
+Custom scope callbacks and operation emitters must retain the values, descriptors,
+and callback captures their emitted code needs. Storing an emitter in the lookup
+doesn't automatically retain that emitter's captures in a compiled program.
+Captured references must outlive every callback or execution that uses them.
+Sharing capture ownership doesn't make mutable callback state thread-safe.
 An allocating comparison or a selected emitter's failure propagates; it never
 becomes a no-match. An emission failure leaves the builder safely discardable,
 not necessarily unchanged.
@@ -71,8 +75,13 @@ operation.
 operation-only dispatch, not bare function lookup or callable invocation.
 Scopes may handle nonzero-arity direct operations before registrations.
 Canonical named record projection follows custom operation, structural, and
-built-in precedence as a fallback. This projection is a C++ carrier adaptation
-of Rust's typed member-operation path, not a guessed native field layout.
+built-in precedence as a fallback. Projection uses the registered record schema,
+not a native field layout.
+
+<!-- [knowledge]
+Preserve schema-based record projection as the C++ carrier adaptation of Rust's
+typed member-operation path; do not infer native layouts from member names.
+-->
 
 A declined scope callback must leave emitted instructions and operands unchanged.
 Scope callbacks and descriptor emitters can query the lookup, but they must not
@@ -121,11 +130,16 @@ Cast syntax consumes one identifier rather than this complete type production.
 `apply_cast` recognizes only `bool` and `f64`, not registered aliases.
 
 The token-cursor and owned-text-lexer overloads consume one prefix and leave
-its following host token. The lexer overload doesn't materialize a separate
-token array.
-The span overload rejects trailing input before terminal EOF. Producer diagnostics
-retain their category, span, and message. Malformed syntax, unsupported names,
-and parameter eligibility failures produce `parse_error` with source spans.
+its following host token. The returned descriptor owns its metadata and survives
+the cursor, tokens, source, and lookup. Parsing never rewinds; a failed parse may
+advance the cursor. The lexer overload doesn't materialize a separate token array.
+The `parsed_span` overloads publish the first consumed token's `begin` through the
+last consumed token's `end` only on success. They exclude surrounding whitespace
+and leave the output span unchanged on failure.
+The `std::span<const token>` overload rejects trailing input before terminal EOF.
+Producer diagnostics retain their category, span, and message. Malformed syntax,
+unsupported names, and parameter eligibility failures produce `parse_error` with
+source spans.
 At most 128 recursive productions may be active; deeper untrusted input reports
 `resource_limit` at the offending current token instead of exhausting the native
 stack. Descriptor allocation and accounting failures propagate.
@@ -136,9 +150,12 @@ Names use transparent borrowed hash lookup. Matching scales with overload count,
 arity, and distinct compared metadata pairs; the runtime retains DAG-safe
 comparison. Scope storage is an owned vector searched in reverse. Type parsing
 uses bounded predictive recursion and allocates complete immutable descriptors.
-The runtime's `dyn_segment::origin_below(count)` queries its cached operand
-origin in O(1) time and space without allocation. Marker-call emission uses that
-query rather than reconstructing runtime layout or maintaining a mirrored stack.
+
+<!-- [knowledge]
+Keep marker-call emission on the runtime's O(1), allocation-free
+dyn_segment::origin_below(count) query; reconstructing runtime layout or mirroring
+the operand stack would duplicate runtime ownership bookkeeping.
+-->
 
 Registration and compilation allocate metadata and heterogeneous callback storage.
 Typed scalar execution uses runtime thunks and can reuse a prepared caller stack

@@ -17,6 +17,10 @@
 #include <utility>
 #include <vector>
 
+/// \file
+/// Provides owned operation registries and type parsing for CEL library clients.
+/// Include `<cel/parser/compiler.hpp>` to compile expressions with a registry.
+
 namespace cel {
 /// Selects ordinary value-name/call dispatch or operation-only receiver dispatch.
 /// Example: lookup_selector::member never resolves a bare function binding.
@@ -27,15 +31,22 @@ enum class lookup_selector {
 /// Selects all active scopes or only persistent library scopes.
 /// Example: scope_selection::library_only hides enclosing host bindings.
 enum class scope_selection {
-    all,         ///< Searches transient scopes before persistent libraries.
-    library_only ///< Searches persistent libraries and registrations only.
+    all,         ///< Includes transient scopes before persistent libraries.
+    library_only ///< Excludes transient scopes; retains persistent libraries and other tiers.
 };
-/// Owns a copyable scope callback; false leaves the builder completely unchanged.
-/// Captured references remain the client's lifetime and synchronization responsibility.
+/// Owns a copyable resolver called with a borrowed name, builder, operand count, and source span.
+/// The name and builder are borrowed only for the call. Operands are older-first.
+/// Returning false must leave instructions and operands unchanged. Returning true must
+/// emit the resolved value or operation, consuming arity operands and adding one result.
+/// Exceptions propagate; after an emission failure, the builder need only be safely discardable.
+/// Captured references must outlive uses of the callback and any emitted code retaining them.
+/// Clients synchronize shared mutable captures.
 /// Example: [](std::string_view, dyn_segment&, std::size_t, source_span) { return false; }.
 using scope_callback =
     std::function<bool(std::string_view, dyn_segment&, std::size_t, source_span)>;
 /// Owns a checked emitter whose successful effect consumes its declared inputs and adds one result.
+/// The builder is borrowed only for the call; span locates the source operation.
+/// Emitted code must retain the values, descriptors, and captures it needs for execution.
 /// Callback exceptions propagate; an error need only leave the builder safely discardable.
 /// Example: [](dyn_segment& b, source_span) { b.project_tuple(0); }.
 using operation_emitter = std::function<void(dyn_segment&, source_span)>;
@@ -54,11 +65,25 @@ struct name_hash {
 } // namespace parser_detail
 
 /// Owns exact registrations, nominal schemas, and LIFO scope callbacks.
-/// Names, descriptors, and callbacks never borrow registration arguments.
-/// Freezing emitted runtime code retains callback captures after this lookup dies.
+/// Owns copied names, retained descriptors, and stored callbacks, not references inside captures.
+/// register_op retains its runtime callback in emitted code after this lookup dies.
+/// Custom scope callbacks and operation emitters must retain state in the code they emit.
 /// Client-captured references must outlive every execution that uses them.
 /// Mutable callbacks are not made thread-safe by registry ownership.
-/// Example: op_lookup l; l.register_op<double, double>("twice", [](double x) { return x * 2; }).
+/// Registration matches complete compatible input descriptors, including nominal identity
+/// and ownership representation; equal layouts or display names do not establish a match.
+/// Copies are unavailable; moves transfer registry ownership.
+/// Register a receiver operation and compile it through the public builder:
+/// \code{.cpp}
+/// cel::op_lookup lookup;
+/// lookup.register_op<double, double>("twice", [](double x) { return x * 2; });
+/// cel::dyn_segment builder;
+/// builder.just(cel::value::from(3.0));
+/// lookup.apply("twice", builder, 1, {0, 9}, cel::lookup_selector::member);
+/// auto code = std::move(builder).finish();
+/// cel::raw_stack stack;
+/// double result = code.prepare<double>().call(stack); // 6.0
+/// \endcode
 class op_lookup {
     /// Owns one complete signature and its checked emission callback.
     struct operation {
@@ -138,17 +163,19 @@ public:
     /// Standard numeric function names require install_standard_library().
     /// Complexity: O(retained signature count) metadata and callback storage.
     op_lookup();
-    /// Prevents shallow copies of callback state being advertised as independent registries.
+    /// Disallows copying this registry.
     op_lookup(const op_lookup&) = delete;
-    /// Prevents copied assignment.
+    /// Disallows copy assignment of this registry.
     op_lookup& operator=(const op_lookup&) = delete;
     /// Transfers owned registration and scope state.
     op_lookup(op_lookup&&) noexcept = default;
     /// Transfers state and releases old registrations.
     /// Complexity: O(old owned state).
     op_lookup& operator=(op_lookup&&) noexcept = default;
+    // [knowledge] Keep registries noncopyable: shared mutable callback captures are not
+    // independent value copies, even when their std::function wrappers can be copied.
     /// Registers an opaque trivially-copyable leaf under an owned nonempty name.
-    /// Throws invalid_argument for duplicate/reserved names or a structural native adapter.
+    /// Throws std::invalid_argument for empty/duplicate/reserved names or a structural adapter.
     /// Complexity: O(name bytes), expected map insertion.
     /// Example: lookup.register_type<my_trivial_type>("Point").
     template <class T>
@@ -173,8 +200,10 @@ public:
     /// Example: lookup.find_type("f64")->kind() == type_kind::leaf.
     std::optional<value_type> find_type(std::string_view name) const;
     /// Registers one exact complete operation; a return type never distinguishes overloads.
-    /// Emitters must consume inputs and produce one result with compatible ownership.
-    /// Throws invalid_argument for empty names, absent emitters, or duplicate inputs.
+    /// Copies the name and input descriptors and owns result and emit.
+    /// emit follows operation_emitter's ownership and emission contract.
+    /// Throws std::invalid_argument for empty names, absent emitters, or duplicate inputs.
+    /// apply() checks the emitted stack depth and result compatibility after selection.
     /// Complexity: O(overloads * arity * distinct compared plans + name bytes).
     /// Example: lookup.register_operation("first", inputs, result, [](dyn_segment& b, source_span)
     /// { b.project_tuple(0); }).
@@ -190,10 +219,12 @@ public:
                                 std::span<const value_type> inputs,
                                 value_type result,
                                 operation_emitter emit);
-    /// Owns a typed const callback accepted by the runtime's exact thunk constraints.
+    /// Registers an owned const-invocable callback with exactly the declared result type.
+    /// Arguments must satisfy the runtime's declared A... invocation constraints.
     /// Concrete vectors/tuples use trusted public adapters; opaque leaves are trivially copyable.
     /// Use std::tuple<> for source unit; void is not a source value.
-    /// Duplicate operands are rejected even if R differs. Callback references stay client-owned.
+    /// Throws std::invalid_argument for an empty name or duplicate operands, even if R differs.
+    /// Callback references stay client-owned; emitted code retains the stored callback.
     /// Lvalue callbacks are copied; rvalue callbacks are moved into owned decayed storage.
     /// Complexity: O(overloads * arity * distinct compared plans + name/capture storage +
     /// first-use complete structural descriptor construction).
@@ -213,7 +244,9 @@ public:
     }
     /// Binds an ordinary name to its first owned trivially-copyable marker.
     /// Repeated installers may use another marker for the same name; the first remains selected.
-    /// Throws invalid_argument for a structural marker or if its type names a distinct function.
+    /// Throws std::invalid_argument for an empty name, a structural marker, or a marker type
+    /// already bound to a distinct function.
+    /// Register matching register_op overloads separately; a marker alone supplies no operation.
     /// Failure leaves existing bindings and marker reservations unchanged.
     /// Complexity: O(name bytes + marker size), expected hash insertion.
     /// Example: lookup.register_function("convert", my_marker{}).
@@ -233,7 +266,8 @@ public:
                             });
         }
     }
-    /// Owns a transient scope searched before persistent registrations and libraries.
+    /// Owns a transient scope searched newest-first before persistent libraries and registrations.
+    /// Precondition: callback follows scope_callback's emission and capture-lifetime contract.
     /// Throws invalid_argument for an empty callback.
     /// Complexity: amortized O(1), plus callback ownership.
     /// Example: lookup.push_scope([](auto, auto&, auto, auto) { return false; }).
@@ -245,11 +279,13 @@ public:
     void pop_scope();
     /// Owns a persistent LIFO library scope visible in independent closure bodies.
     /// Precondition: no transient scopes are active.
+    /// Precondition: callback follows scope_callback's emission and capture-lifetime contract.
     /// Throws invalid_argument for an empty callback.
     /// Complexity: amortized O(1), plus callback ownership.
     /// Example: lookup.push_library_scope(library_callback).
     void push_library_scope(scope_callback callback);
     /// Transfers transient scopes out, retaining persistent libraries and all registrations.
+    /// Postcondition: no transient scopes remain active; the returned vector owns them in order.
     /// Example: auto saved = lookup.isolate_scopes().
     std::vector<scope_callback> isolate_scopes();
     /// Retires current transient scopes and restores the previously owned set in order.
@@ -257,13 +293,20 @@ public:
     /// Complexity: O(retired captures).
     /// Example: lookup.restore_scopes(std::move(saved)).
     void restore_scopes(std::vector<scope_callback> saved);
-    /// Resolves exact older-first operands and emits without executing the operation.
+    /// Resolves exact older-first operands and emits code without executing runtime operations.
     /// Ordinary calls count the marker/callee plus explicit arguments; members count the receiver.
+    /// Ordinary resolution searches scopes, function bindings, operations, structural operations,
+    /// built-ins, then callable invocation. Member resolution omits bare function bindings and
+    /// callable invocation; named record projection follows the operation tiers.
+    /// Direct zero-explicit-argument marker calls skip scopes for the operation lookup.
+    /// selection excludes transient scopes only when set to library_only.
     /// Precondition: callbacks do not modify this lookup's registrations or scope sets.
-    /// Throws parse_error with span on no match; comparison and selected-emitter failures
-    /// propagate. Complexity: O(scopes + overloads * arity * distinct compared plans);
-    /// captures and metadata allocate during compilation, not scalar
-    /// execution. Example: lookup.apply("+", builder, 2, source_span{0, 3}).
+    /// Throws parse_error(lookup_error) with span on no match. Throws std::invalid_argument if
+    /// a selected registered emitter violates its result/depth contract. Comparison and
+    /// callback failures propagate. A selected-emitter failure need not leave builder unchanged.
+    /// Complexity: O(name bytes + scopes + overloads * arity * distinct compared plans +
+    /// selected callback work); emission allocates code, captures, and metadata as needed.
+    /// Example: lookup.apply("+", builder, 2, source_span{0, 3}).
     void apply(std::string_view name,
                dyn_segment& builder,
                std::size_t arity,
@@ -272,13 +315,14 @@ public:
                scope_selection selection = scope_selection::all) const;
     /// Emits only retained identity casts: bool to bool and f64 to f64.
     /// Only the target spellings "bool" and "f64" are recognized; registered aliases are not.
-    /// Throws parse_error with span for an unsupported target/source or underflow.
+    /// Throws parse_error(type_error) with span for an unsupported target/source or underflow.
     /// Complexity: O(target bytes + compared metadata).
     /// Example: lookup.apply_cast("f64", builder, source_span{0, 8}).
     void apply_cast(std::string_view target, dyn_segment& builder, source_span span) const;
 };
 
 /// Installs the eleven retained standard numeric names and f64 signatures explicitly.
+/// Installs min, max, clamp, abs, signum, sqrt, floor, ceil, trunc, fract, and round_ties_even.
 /// Independent disjoint client overloads compose; reinstalling a signature throws invalid_argument.
 /// Failure leaves a safely discardable, possibly partially installed lookup.
 /// Complexity: O(installed signatures * existing overloads * compared metadata).
@@ -289,22 +333,40 @@ void install_standard_library(op_lookup& lookup);
 /// | "[" type_expression "]" | "(" [ type_expression [ "," [ type_expression
 /// { "," type_expression } ] ] ] ")".
 /// Parses one current-token type and leaves the following host token unconsumed.
-/// Fn requires a parameter tuple and a result; singleton tuples require their comma.
-/// Ordinary aggregates admit registered leaves; callable parameters obey runtime eligibility.
-/// Throws source-located parse_error for invalid syntax/types, producer errors, or nesting
-/// exceeding 128 productions. Allocation/accounting failures propagate.
+/// Each choice uses only the current token. A consumed comma requires another item except
+/// for the required singleton-tuple comma; optional trailing commas are invalid.
+/// Fn requires a parameter tuple and a result. Ordinary aggregates admit registered leaves.
+/// Callable parameters admit recursively eligible bool/f64 composites, not client leaves
+/// or nested callables; results admit any complete type. A callable type does not own code.
+/// Returns an owned descriptor that survives the cursor, token source, and lookup.
+/// Throws source-located parse_error(malformed_input) for an expected type production,
+/// delimiter_error for a missing/mismatched close, type_error for unsupported names or
+/// ineligible callable types, and resource_limit beyond 128 active type productions.
+/// Producer errors retain their category, message, and span. Allocation/accounting failures
+/// propagate. Failure may advance the cursor; parsing never rewinds.
 /// Complexity: O(tokens + name bytes + complete descriptor construction), O(nodes + 128) storage.
-/// Example: token_cursor cursor(tokens); auto type = parse_type(cursor, lookup).
+/// Parse a prefix with an owned type and leave its host separator:
+/// \code{.cpp}
+/// cel::op_lookup lookup;
+/// cel::lex_lexer cursor("(f64,), host");
+/// cel::source_span parsed;
+/// auto type = cel::parse_type(cursor, lookup, parsed);
+/// auto count = type.fields().size(); // 1; parsed is {0, 6}.
+/// auto comma = std::get<cel::punctuation>(cursor.current().value).spelling(); // ","
+/// \endcode
 value_type parse_type(token_cursor& cursor, const op_lookup& lookup);
 /// Parses one type directly from the owned text lexer, following the inline grammar contract.
 /// Leaves the following host token unconsumed without materializing a separate token array.
 /// Throws the source diagnostics and resource errors documented by the token-cursor overload.
-/// Complexity: O(lexed source bytes + complete descriptor construction), O(nodes + 128) storage.
+/// Complexity: O(lexer traversal + name bytes + complete descriptor construction) time,
+/// O(nodes + 128) additional storage, excluding the lexer's owned source and payload.
 /// Example: lex_lexer cursor("[f64], next"); auto type = parse_type(cursor, lookup).
 value_type parse_type(lex_lexer& cursor, const op_lookup& lookup);
 /// Parses one token type prefix and returns its exact consumed byte interval in parsed_span.
 /// Follows the two-argument prefix overload's grammar, errors, ownership, and complexity.
-/// - Postcondition: parsed_span excludes surrounding whitespace and the following host token.
+/// Postcondition: parsed_span runs from the first consumed token's begin to the last one's end,
+/// excluding surrounding whitespace and the following host token.
+/// External tokens supply these offsets; parsing does not re-lex their source.
 /// Leaves parsed_span unchanged if parsing fails; the cursor may have advanced.
 /// Example: source_span span; auto type = parse_type(cursor, lookup, span).
 value_type parse_type(token_cursor& cursor, const op_lookup& lookup, source_span& parsed_span);
@@ -313,6 +375,9 @@ value_type parse_type(token_cursor& cursor, const op_lookup& lookup, source_span
 /// Example: lex_lexer c("[f64] , next"); source_span s; auto t = parse_type(c, lookup, s).
 value_type parse_type(lex_lexer& cursor, const op_lookup& lookup, source_span& parsed_span);
 /// Parses one complete type and rejects trailing input; follows the inline grammar contract.
+/// Throws parse_error(malformed_input) for input after the type and before terminal end.
+/// Explicit end/error tokens follow token_cursor's contract; later tokens are ignored.
+/// Returns an owned descriptor; tokens and lookup need not survive the call.
 /// Complexity: O(tokens + name bytes + complete descriptor construction), O(nodes + 128) storage.
 /// Example: auto type = parse_type(std::span<const token>(tokens), lookup).
 value_type parse_type(std::span<const token> tokens, const op_lookup& lookup);

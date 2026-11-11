@@ -13,16 +13,21 @@
 #include <variant>
 #include <vector>
 
-/// Provides decoded CEL text tokens and producer-independent forward traversal.
+/// \file
+/// Provides owned CEL tokens and forward-only cursors for token consumers and producers.
+/// Include `<cel/parser/lookup.hpp>` for type parsing or `<cel/parser/compiler.hpp>` for
+/// expression compilation.
+
+/// Provides CEL token, lookup, and compilation interfaces.
 namespace cel {
 
 /// Identifies a half-open UTF-8 byte interval; begin never exceeds end.
 /// Example: source_span{0, 4} covers all bytes of "true".
 struct source_span {
-    std::size_t begin = 0; ///< Inclusive byte offset.
-    std::size_t end = 0;   ///< Exclusive byte offset.
+    std::size_t begin = 0; ///< Inclusive byte offset in the producer's source.
+    std::size_t end = 0;   ///< Exclusive byte offset; equal to begin for an empty interval.
 
-    /// Compares byte intervals.
+    /// Returns true if both byte offsets are equal.
     bool operator==(const source_span&) const = default;
 };
 
@@ -31,10 +36,10 @@ struct source_span {
 enum class error_category {
     malformed_input,     ///< Invalid UTF-8, spelling, comment, or input character.
     unsupported_literal, ///< A literal or suffix outside bool/binary64 scope.
-    type_error,          ///< An unknown, unsupported, or ineligible complete type.
+    type_error,          ///< An unknown, unsupported, ineligible, or incompatible type.
     lookup_error,        ///< An undefined name or unmatched operation signature.
     delimiter_error,     ///< An unmatched, mismatched, or unclosed delimiter.
-    resource_limit       ///< A producer's explicitly documented resource limit.
+    resource_limit       ///< A documented producer or compilation resource limit.
 };
 
 /// Owns a source-located diagnostic; copied diagnostics own independent messages.
@@ -44,12 +49,13 @@ class parse_error : public std::runtime_error {
     source_span span_;
 
 public:
-    /// Constructs a diagnostic with an owned message and ordered byte interval.
+    /// Constructs a diagnostic with an owned message, category, and byte interval.
+    /// Precondition: span.begin <= span.end.
     /// Complexity: O(message.size()) time and space.
     parse_error(error_category category, source_span span, std::string message);
-    /// Returns the diagnostic category.
+    /// Returns the category supplied at construction.
     [[nodiscard]] error_category category() const noexcept { return category_; }
-    /// Returns the byte interval supplied by the producer.
+    /// Returns the byte interval supplied at construction, without translating offsets.
     [[nodiscard]] source_span span() const noexcept { return span_; }
 };
 
@@ -61,17 +67,20 @@ enum class numeric_form {
     exponent ///< Decimal spelling with an exponent, with or without a dot.
 };
 
-/// Owns exact spelling and suffix; value uses round-to-nearest binary64 conversion.
+/// Owns a numeric token's exact spelling, suffix, and converted binary64 value.
+/// The text lexer uses round-to-nearest binary64 conversion.
 /// Overflow yields positive infinity and underflow rounds to a subnormal or zero.
+/// Copying takes O(spelling.size() + suffix.size()) time and space.
 /// Example: numeric_literal{1.0, "1f64", "f64", numeric_form::integer}.
 struct numeric_literal {
-    double value;         ///< Converted unsigned scalar; signs are punctuation.
+    double value;         ///< Converted scalar; the text lexer emits signs as punctuation.
     std::string spelling; ///< Exact source spelling, including underscores and suffix.
     std::string suffix;   ///< Empty or f64 for the text adapter.
     numeric_form form;    ///< Syntax classification, not a scalar type.
 };
 
 /// Owns an identifier's exact spelling, including a raw r# prefix when present.
+/// Copying takes O(spelling.size()) time and space.
 /// Example: identifier{"α"}.
 struct identifier {
     std::string spelling; ///< Exact producer spelling; no Unicode normalization.
@@ -84,10 +93,11 @@ class punctuation {
     std::size_t size_ = 0;
 
 public:
-    /// Copies one to three ASCII punctuation bytes.
+    /// Copies one to three bytes from the ASCII set `~!@#$%^&*-=+|;:,<.>/?'`.
     /// Throws std::invalid_argument for an empty, oversized, or non-punctuation spelling.
+    /// The spelling need not be an operator recognized by the expression grammar.
     explicit punctuation(std::string_view spelling);
-    /// Borrows the spelling until this punctuation object dies or is assigned.
+    /// Returns the spelling, borrowed until this object dies, is assigned, or is moved from.
     [[nodiscard]] std::string_view spelling() const noexcept { return {bytes_.data(), size_}; }
 };
 
@@ -101,20 +111,23 @@ enum class delimiter {
 };
 /// Marks a group's opening boundary; example: open_delimiter{delimiter::brace}.
 struct open_delimiter {
-    delimiter kind; ///< Group kind.
+    delimiter kind; ///< Opening group kind, paired with a close of the same kind.
 };
 /// Marks a group's closing boundary; example: close_delimiter{delimiter::brace}.
 struct close_delimiter {
-    delimiter kind; ///< Group kind.
+    delimiter kind; ///< Closing group kind, paired with an open of the same kind.
 };
 /// Owns doc-comment content without its markers; example: doc_comment{"text", false}.
+/// Copying takes O(text.size()) time and space.
 struct doc_comment {
     std::string text; ///< Retained content, including spaces and nested comment markers.
-    bool inner;       ///< True for //! and /*! comments; false for outer comments.
+    bool inner;       ///< True for //! and /*! comments; false for /// and /** comments.
 };
 /// Marks terminal input; example: end_token{}.
 struct end_token {};
-/// Stores one owned payload; example: token_value{true}.
+/// Stores one owned payload, including owned diagnostic messages.
+/// Copying takes O(payload bytes) time and space for string-bearing alternatives.
+/// Example: token_value{true}.
 using token_value = std::variant<bool,
                                  numeric_literal,
                                  identifier,
@@ -128,41 +141,60 @@ using token_value = std::variant<bool,
 /// Payload copies cost O(payload bytes), excluding inline punctuation and scalar values.
 /// Example: token{{0, 4}, true}.
 struct token {
-    source_span span;  ///< Producer's half-open byte interval.
-    token_value value; ///< Owned payload; error diagnostics retain their own span.
+    source_span span;  ///< Producer's half-open byte interval, not a character index.
+    token_value value; ///< Owned payload; consumers use a parse_error's own diagnostic span.
 };
 
 /// Borrows a flattened producer's tokens and exposes only the current token.
-/// The sequence must outlive this cursor and remain unchanged during traversal.
+/// Precondition: the sequence outlives this cursor and remains unchanged during traversal.
 /// Explicit end and error tokens terminate traversal; following tokens are ignored.
 /// An implicit end uses the last consumed token's exclusive end, or zero for empty input.
-/// Example: token_cursor cursor(std::span<const token>{}); cursor.advance().
+/// The cursor preserves payloads and spans; it does not validate groups or re-lex tokens.
+/// Copying and moving are unavailable.
+/// Consume a producer's boolean token:
+/// \code{.cpp}
+/// std::array<cel::token, 1> tokens{{{{0, 4}, true}}};
+/// cel::token_cursor cursor(tokens);
+/// bool value = std::get<bool>(cursor.current().value); // true
+/// cursor.advance(); // current() now contains end_token at {4, 4}.
+/// \endcode
 class token_cursor {
     std::span<const token> tokens_;
     token end_{{0, 0}, end_token{}};
 
 public:
     /// Primes the cursor to the first token or implicit end.
+    /// Borrows tokens under this class's lifetime and immutability precondition.
     explicit token_cursor(std::span<const token> tokens);
-    /// Prevents cloning traversal state.
+    /// Disallows copying this forward-only cursor.
     token_cursor(const token_cursor&) = delete;
-    /// Prevents assignment of traversal state.
+    /// Disallows copy assignment of this forward-only cursor.
     token_cursor& operator=(const token_cursor&) = delete;
-    /// Returns the current token, borrowed until the cursor dies or advances.
+    /// Returns the current token, borrowed until this cursor dies or advances.
+    /// Returns the producer's explicit end unchanged, or a synthesized end after exhaustion.
     [[nodiscard]] const token& current() const noexcept;
-    /// Consumes one token; advance at end does nothing and advance after error reaches end.
+    /// Consumes one token; advancing end does nothing and advancing an error reaches end.
+    /// Postcondition: after an error, current() is end at that token's span.end.
     void advance() noexcept;
 };
 
-/// Owns decoded text and lazily emits flattened CEL tokens through a single-token cursor.
+/// Owns a copy of decoded text and emits flattened CEL tokens through a single-token cursor.
 /// Construction validates all UTF-8 and primes current(); malformed UTF-8 becomes an error
 /// token before any source token. Other lexical errors are terminal diagnostic tokens.
-/// Advancing an error reaches end; advancing end does nothing. The source and copied
-/// payloads never borrow the constructor argument. Delimiter checking is iterative.
+/// Advancing an error reaches end; advancing end does nothing. Source offsets count UTF-8
+/// bytes, including trivia. End has an empty span at source.size(). Copied tokens and
+/// the source never borrow the constructor argument. Copying and moving are unavailable.
+/// Lexical diagnostics are tokens, not thrown parse_error exceptions.
 /// Complexity: O(n) source copy/validation; traversal O(n + u log R), where u is
 /// identifier scalars and R is Unicode property ranges; O(n + d) owned storage for
 /// source and delimiter depth d, plus the current payload. No fixed depth limit.
-/// Example: lex_lexer lexer("1f64"); std::get<numeric_literal>(lexer.current().value).value.
+/// Read a token after releasing the constructor argument:
+/// \code{.cpp}
+/// cel::lex_lexer lexer(std::string("1f64"));
+/// cel::token saved = lexer.current();
+/// lexer.advance();
+/// double value = std::get<cel::numeric_literal>(saved.value).value; // 1.0
+/// \endcode
 class lex_lexer {
     std::string source_;
     std::size_t position_ = 0;
@@ -189,16 +221,19 @@ public:
     /// Copies and validates decoded text, then primes the current token.
     /// Complexity: O(text.size()) time and space, plus first-token traversal.
     explicit lex_lexer(std::string_view text);
-    /// Prevents cloning traversal state.
+    /// Disallows copying this forward-only lexer.
     lex_lexer(const lex_lexer&) = delete;
-    /// Prevents assignment of traversal state.
+    /// Disallows copy assignment of this forward-only lexer.
     lex_lexer& operator=(const lex_lexer&) = delete;
-    /// Returns the current token, borrowed until advance(), assignment, or destruction.
+    /// Returns the current token, borrowed until advance() or destruction.
     [[nodiscard]] const token& current() const noexcept { return current_; }
     /// Emits the next token; a terminal diagnostic advances to end and end stays end.
+    /// Skips whitespace and ordinary comments, but emits doc comments as tokens.
+    /// Allocation failures propagate; lexical failures become terminal parse_error tokens.
     /// Complexity: O(consumed bytes + identifier scalars log R), plus payload storage.
     void advance();
 };
+// [knowledge] Keep delimiter checking iterative so the text adapter has no fixed depth limit.
 
 } // namespace cel
 
