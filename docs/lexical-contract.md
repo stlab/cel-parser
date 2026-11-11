@@ -55,11 +55,12 @@ Neither interface can be copied, assigned, moved, checkpointed, indexed, or
 rewound. There is no parser lookahead beyond the current token. Character
 composition inside the adapter doesn't expose additional parser lookahead.
 
-For example, consume an external boolean and reach implicit end:
+Include the private `src/lexer.hpp` header in maintainer code. For example,
+consume an external boolean and reach implicit end:
 
 ```cpp
-std::array<cel::token, 1> tokens{{{{0, 4}, true}}};
-cel::token_cursor cursor(tokens);
+std::array<cel::parser_detail::token, 1> tokens{{{{0, 4}, true}}};
+cel::parser_detail::token_cursor cursor(tokens);
 bool value = std::get<bool>(cursor.current().value);
 cursor.advance();
 ```

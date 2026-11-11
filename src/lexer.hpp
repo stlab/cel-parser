@@ -103,10 +103,10 @@ struct token {
 /// An implicit end uses the last consumed token's exclusive end, or zero for empty input.
 /// The cursor preserves payloads and spans; it does not validate groups or re-lex tokens.
 /// Copying and moving are unavailable.
-/// Consume a producer's boolean token:
+/// Include the private src/lexer.hpp header and consume a producer's boolean token:
 /// \code{.cpp}
-/// std::array<cel::token, 1> tokens{{{{0, 4}, true}}};
-/// cel::token_cursor cursor(tokens);
+/// std::array<cel::parser_detail::token, 1> tokens{{{{0, 4}, true}}};
+/// cel::parser_detail::token_cursor cursor(tokens);
 /// bool value = std::get<bool>(cursor.current().value); // true
 /// cursor.advance(); // current() now contains end_token at {4, 4}.
 /// \endcode

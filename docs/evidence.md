@@ -11,7 +11,7 @@ P4 fixes malformed selector conversion spans at
 pinned to the original baseline.
 The runtime source upstream is
 [stlab/cel-runtime](https://github.com/stlab/cel-runtime).
-Use runtime revision `6709f3df4a97429d210be2390f6fac93bc21d0ef`.
+Use runtime revision `d9a48aa769fda20fa31648e3eb1955603a3898e4`.
 This prerequisite includes shared native descriptors, cached operand origins,
 result-first operation helpers, stack-independent
 executable retirement and complete higher-order result ownership checks; the
