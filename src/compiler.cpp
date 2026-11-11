@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
 #include <algorithm>
+#include <cassert>
 #include <cel/parser/compiler.hpp>
 #include <charconv>
 #include <iterator>
@@ -262,22 +263,30 @@ class expression_compiler {
         const auto start = current().span;
         binary(builder, level + 1);
         while (operator_at(level)) {
-            const auto op = std::get<punctuation>(current().value);
-            advance();
-            if (level < 2) {
-                dyn_segment rhs(builder.before_top());
-                binary(rhs, level + 1);
-                structural(span_from(start), [&] {
-                    if (level == 0)
-                        builder.logical_or(std::move(rhs));
-                    else
-                        builder.logical_and(std::move(rhs));
-                });
-            } else {
-                binary(builder, level + 1);
-                lookup_.apply(op.spelling(), builder, 2, span_from(start));
-            }
+            binary_rhs(builder, level, start);
             if (level == 2) break;
+        }
+    }
+    /// Consumes the current binary operator and compiles its RHS.
+    /// Keeps operator-local storage out of ordinary precedence frames.
+    /// Precondition: operator_at(level).
+    /// Complexity: O(RHS compilation and lookup/emission work).
+    void binary_rhs(dyn_segment& builder, std::size_t level, source_span start) {
+        assert(operator_at(level));
+        const auto op = std::get<punctuation>(current().value);
+        advance();
+        if (level < 2) {
+            dyn_segment rhs(builder.before_top());
+            binary(rhs, level + 1);
+            structural(span_from(start), [&] {
+                if (level == 0)
+                    builder.logical_or(std::move(rhs));
+                else
+                    builder.logical_and(std::move(rhs));
+            });
+        } else {
+            binary(builder, level + 1);
+            lookup_.apply(op.spelling(), builder, 2, span_from(start));
         }
     }
     /// cast_expression = unary_expression { "as" identifier }.
