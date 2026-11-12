@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: BSL-1.0
+# Builds a source consumer whose own tests are enabled, without dependency options.
+set(consumer_source "@CMAKE_CURRENT_BINARY_DIR@/source-check/source")
+set(consumer_build "@CMAKE_CURRENT_BINARY_DIR@/source-check/build")
+file(REMOVE_RECURSE "${consumer_source}" "${consumer_build}")
+file(MAKE_DIRECTORY "${consumer_source}")
+file(WRITE "${consumer_source}/CMakeLists.txt" [=[
+cmake_minimum_required(VERSION 3.24)
+project(source_consumer LANGUAGES CXX)
+include(CTest)
+add_subdirectory("@CMAKE_CURRENT_SOURCE_DIR@" cel-parser)
+foreach(target cel::parser cel::runtime)
+    get_target_property(kind ${target} TYPE)
+    get_target_property(imported ${target} IMPORTED)
+    get_target_property(source ${target} SOURCE_DIR)
+    get_property(dependency_tests DIRECTORY "${source}" PROPERTY TESTS)
+    if(NOT kind STREQUAL "STATIC_LIBRARY" OR imported OR dependency_tests OR CEL_INSTALL)
+        message(FATAL_ERROR "Expected source-built static CEL libraries without dependency tests or installation")
+    endif()
+endforeach()
+add_executable(client "@CMAKE_CURRENT_SOURCE_DIR@/examples/cached_decoded.cpp")
+target_link_libraries(client PRIVATE cel::parser)
+add_test(NAME client COMMAND client)
+]=])
+execute_process(COMMAND "@CMAKE_COMMAND@"
+    -S "${consumer_source}" -B "${consumer_build}"
+    -G "@CMAKE_GENERATOR@" "-DCMAKE_BUILD_TYPE=${CONFIG}"
+    "-DCMAKE_CXX_COMPILER=@CMAKE_CXX_COMPILER@"
+    "-DCMAKE_CXX_FLAGS=@CMAKE_CXX_FLAGS@"
+    "-DCMAKE_EXE_LINKER_FLAGS=@CMAKE_EXE_LINKER_FLAGS@"
+    "-DCPM_SOURCE_CACHE=@CPM_SOURCE_CACHE@"
+    COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND "@CMAKE_COMMAND@" --build "${consumer_build}" --config "${CONFIG}"
+    COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND "@CMAKE_CTEST_COMMAND@" --test-dir "${consumer_build}"
+    -C "${CONFIG}" --output-on-failure COMMAND_ERROR_IS_FATAL ANY)

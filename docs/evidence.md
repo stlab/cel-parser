@@ -91,7 +91,7 @@ Production code depends on the C++20 standard library, committed Unicode
 property data, and the installed `cel-runtime` package through `cel::runtime`.
 There is no Unicode shared-library dependency.
 
-Build infrastructure uses `stlab/cpp-library` at
+Build infrastructure uses `stlab/cpp-library` release `v5.8.0` at
 `dc4fcb11051903ad73fe9cc30fd964b4f83eee20` under BSL-1.0. Its pinned scaffold
 provides CMake presets, doctest 2.5.3 (MIT), generated negative-compilation tests,
 CTest, exports, installation, CI, and strict Doxygen configuration.

@@ -1,5 +1,9 @@
 # Build and link the parser with CPM {#parser_build}
 
+> **Note:** This project is a temporary solution for using the CEL language from
+> [cel-rs](https://github.com/stlab/cel-rs) in C++. This library will be deprecated
+> when using the Rust implementations from C++ becomes viable.
+
 This tutorial builds the parser and its runtime from source as static
 libraries inside your application's CMake build. No installation or package
 prefix is needed.
@@ -54,12 +58,7 @@ cmake_minimum_required(VERSION 3.24)
 project(parser_client LANGUAGES CXX)
 set(CPM_USE_LOCAL_PACKAGES OFF)
 include(cmake/CPM.cmake)
-CPMAddPackage(
-    NAME cel-parser
-    GITHUB_REPOSITORY stlab/cel-parser
-    GIT_TAG 04094fb73a53f9383ce4ea7b78cfb57df9ac7b06
-    OPTIONS "BUILD_SHARED_LIBS OFF" "BUILD_TESTING OFF" "CEL_INSTALL OFF"
-)
+CPMAddPackage("gh:stlab/cel-parser@1.0.0")
 add_executable(client main.cpp)
 target_link_libraries(client PRIVATE cel::parser)
 enable_testing()
@@ -75,14 +74,14 @@ ctest --test-dir build --output-on-failure --verbose
 ```
 
 Confirm that the test passes and prints `5`. CPM builds both libraries from
-source. `BUILD_SHARED_LIBS OFF` selects static libraries, `BUILD_TESTING OFF`
-disables dependency tests, and `CEL_INSTALL OFF` disables CEL package
-installation. `CPM_USE_LOCAL_PACKAGES OFF` keeps CPM from preferring installed
-packages. No install command is part of this build.
+source as static libraries by default. Dependency builds omit the libraries'
+tests and CEL package installation rules.
+`CPM_USE_LOCAL_PACKAGES OFF` keeps CPM from preferring installed packages.
+No install command is part of this build.
 
 The `cel::parser` target supplies the C++20 requirement and links the static
 `cel::runtime` dependency. Do not add dependency include or library directories
-manually. Keep a reviewed commit in `GIT_TAG` when updating the dependency;
+manually. Select a reviewed release after `@` when updating the dependency;
 the parser selects its own pinned runtime revision.
 
 Continue with [Compile and reuse expressions](get-started.md) to cache programs
