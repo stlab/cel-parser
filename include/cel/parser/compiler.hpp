@@ -8,6 +8,9 @@
 /// See `<cel/parser/lookup.hpp>` for library registrations.
 
 namespace cel {
+/// \addtogroup parser_compilation
+/// @{
+
 namespace parser_detail {
 struct parser_access;
 } // namespace parser_detail
@@ -64,5 +67,7 @@ public:
 };
 // [knowledge] Preserve current-token LL(1) compilation: no cursor cloning, speculation,
 // checkpoints, or multi-token lookahead. Character composition belongs to the lexer.
+
+/// @}
 } // namespace cel
 #endif

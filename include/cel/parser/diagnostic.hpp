@@ -7,6 +7,9 @@
 
 /// Provides checked CEL compilation, extension libraries, and owned results.
 namespace cel {
+/// \addtogroup parser_diagnostics
+/// @{
+
 /// Identifies a half-open UTF-8 byte interval; begin never exceeds end.
 /// Example: source_span{0, 4} covers all bytes of "true".
 struct source_span {
@@ -45,5 +48,6 @@ public:
     [[nodiscard]] source_span span() const noexcept { return span_; }
 };
 
+/// @}
 } // namespace cel
 #endif

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 include(cmake/CPM.cmake)
 
 set(CPP_LIBRARY_VERSION "" CACHE STRING "CEL parser package version override")
-CPMAddPackage("gh:stlab/cpp-library#b0b096964a93561c7dd1586fa7b0efdf5f077aab")
+CPMAddPackage("gh:stlab/cpp-library#dc4fcb11051903ad73fe9cc30fd964b4f83eee20")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
@@ -38,9 +38,8 @@ cpp_library_setup(
     TESTS tests.cpp lookup_test.cpp type_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
         cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp standard_library_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp token_interface_fail.cpp
-    DOCS_INPUTS README.md docs/evidence.md
-        docs/lookup-contract.md docs/builtin-census.md docs/expression-grammar.md
-        docs/validation.md docs/p4-handoff.md
+    DOCS_INPUTS README.md docs/build.md docs/get-started.md docs/libraries.md
+        docs/language.md docs/reference.dox
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
         "EXCLUDE_SYMBOLS = cel::detail cel::detail::* cel::parser_detail cel::parser_detail::*"
         "FULL_PATH_NAMES = NO"

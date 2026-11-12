@@ -22,6 +22,9 @@
 /// Include `<cel/parser/compiler.hpp>` to compile expressions with a registry.
 
 namespace cel {
+/// \addtogroup parser_extensions
+/// @{
+
 namespace parser_detail {
 enum class lookup_selector;
 enum class scope_selection;
@@ -314,5 +317,6 @@ public:
     void push_library_scope(scope_callback callback);
 };
 
+/// @}
 } // namespace cel
 #endif

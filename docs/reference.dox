@@ -1,0 +1,16 @@
+/** \defgroup parser_compilation Source compilation
+ * Compile complete UTF-8 string views into owned, reusable runtime programs.
+ * See \ref parser_get_started for typed and owning results, stack reuse,
+ * source lifetime, and execution examples.
+ */
+
+/** \defgroup parser_diagnostics Source diagnostics
+ * Classify compilation failures and locate them with half-open UTF-8 byte
+ * intervals. Client-emitter and execution exceptions propagate independently.
+ */
+
+/** \defgroup parser_extensions Extension libraries
+ * Register exact operation signatures, opaque types, nominal record schemas,
+ * ordinary function names, and persistent scopes before creating a compiler.
+ * See \ref parser_libraries "Add an extension library" for the registration APIs.
+ */

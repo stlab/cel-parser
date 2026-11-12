@@ -92,7 +92,7 @@ property data, and the installed `cel-runtime` package through `cel::runtime`.
 There is no Unicode shared-library dependency.
 
 Build infrastructure uses `stlab/cpp-library` at
-`b0b096964a93561c7dd1586fa7b0efdf5f077aab` under BSL-1.0. Its pinned scaffold
+`dc4fcb11051903ad73fe9cc30fd964b4f83eee20` under BSL-1.0. Its pinned scaffold
 provides CMake presets, doctest 2.5.3 (MIT), generated negative-compilation tests,
 CTest, exports, installation, CI, and strict Doxygen configuration.
 Doxygen-awesome-css 2.5.0 (MIT) supplies the documentation theme. CPM.cmake
