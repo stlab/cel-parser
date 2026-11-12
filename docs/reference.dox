@@ -14,3 +14,17 @@
  * ordinary function names, and persistent scopes before creating a compiler.
  * See \ref parser_libraries "Add an extension library" for the registration APIs.
  */
+
+/** \example example.cpp
+ * Compiles a scalar expression, prepares its result, and executes it on a
+ * caller-owned stack.
+ */
+
+/** \example cached_decoded.cpp
+ * Compiles decoded expressions once and repeatedly evaluates their cached
+ * programs on a reserved stack while preserving caller-owned prefix storage.
+ * See \ref parser_get_started for the walkthrough.
+ *
+ * The example's helper definitions are:
+ * \include cached_decoded.hpp
+ */
