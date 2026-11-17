@@ -294,7 +294,7 @@ TEST_CASE("declined overloads never execute and selected emitter failures propag
     CHECK_THROWS_WITH(operation<double>(lookup, "throwing"), "callback");
 }
 
-TEST_CASE("record_adapter_registration_preserves_nominal_types_and_member_calls") {
+TEST_CASE("record adapter registration preserves nominal types and member calls") {
     cel::op_lookup lookup;
     lookup.register_record_type<adapted_point>();
     lookup.register_record_type<adapted_point_alias>();
@@ -321,7 +321,7 @@ TEST_CASE("record_adapter_registration_preserves_nominal_types_and_member_calls"
               .as<double>() == -1.0);
 }
 
-TEST_CASE("record_adapter_registration_rejects_duplicate_nominal_names") {
+TEST_CASE("record adapter registration rejects duplicate nominal names") {
     cel::op_lookup lookup;
     lookup.register_record_type<adapted_point>();
     CHECK_THROWS_AS(lookup.register_record_type<adapted_point_duplicate_name>(),
