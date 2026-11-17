@@ -50,3 +50,30 @@ execute_process(COMMAND "@CMAKE_COMMAND@" --build "${consumer_build}" --config "
     COMMAND_ERROR_IS_FATAL ANY)
 execute_process(COMMAND "@CMAKE_CTEST_COMMAND@" --test-dir "${consumer_build}"
     -C "${CONFIG}" --output-on-failure COMMAND_ERROR_IS_FATAL ANY)
+
+# Runtime 1.0.1 changes private layout; reject older installed packages.
+set(old_runtime_prefix "${consumer_build}/old-runtime-prefix")
+file(COPY "${prefix}/" DESTINATION "${old_runtime_prefix}")
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+    "${old_runtime_prefix}/@CMAKE_INSTALL_LIBDIR@/cmake/cel-runtime/cel-runtimeConfigVersion.cmake"
+    VERSION 1.0.0 COMPATIBILITY SameMajorVersion ARCH_INDEPENDENT)
+set(version_probe "${consumer_build}/version-probe")
+file(MAKE_DIRECTORY "${version_probe}")
+file(WRITE "${version_probe}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 3.24)\n"
+    "project(runtime_version_probe LANGUAGES NONE)\n"
+    "find_package(cel-parser CONFIG REQUIRED)\n")
+execute_process(COMMAND "@CMAKE_COMMAND@"
+    -S "${version_probe}" -B "${version_probe}/build" -G "@CMAKE_GENERATOR@"
+    "-DCMAKE_PREFIX_PATH=${old_runtime_prefix}"
+    "-DCMAKE_FIND_ROOT_PATH=${old_runtime_prefix}"
+    -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
+    -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
+    RESULT_VARIABLE version_result OUTPUT_VARIABLE version_output ERROR_VARIABLE version_error)
+if(version_result EQUAL 0 OR NOT "${version_output}${version_error}" MATCHES "cel-runtime"
+        OR NOT "${version_output}${version_error}" MATCHES "1\\.0\\.1"
+        OR NOT "${version_output}${version_error}" MATCHES "1\\.0\\.0")
+    message(FATAL_ERROR
+        "Installed parser must reject runtime 1.0.0:\n${version_output}${version_error}")
+endif()

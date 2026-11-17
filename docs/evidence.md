@@ -11,13 +11,16 @@ P4 fixes malformed selector conversion spans at
 pinned to the original baseline.
 The runtime source upstream is
 [stlab/cel-runtime](https://github.com/stlab/cel-runtime).
-Use runtime revision `d9a48aa769fda20fa31648e3eb1955603a3898e4`.
+CPM pins runtime release `v1.0.1` at revision
+`a8e753b040664172fd3f526f9cf46029858ff788`.
 This prerequisite includes shared native descriptors, cached operand origins,
 result-first operation helpers, stack-independent
 executable retirement and complete higher-order result ownership checks; the
 earlier P4 runtime revision is insufficient. The parser consumes the public
 target from a pinned CPM source dependency; it neither copies runtime
 implementation nor includes private headers.
+Rebuild the parser and all clients together when upgrading: runtime v1.0.1
+changes the private type-descriptor layout.
 
 The delivered Rust evidence establishes these contracts:
 
