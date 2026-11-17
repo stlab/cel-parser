@@ -66,6 +66,8 @@ def core_corpus():
         "((1.0f64,2.0f64),).0.1", "(|λ:f64|λ)(1.0f64)",
     ]:
         add("lexical-positive", source)
+    # [knowledge] Keep `1f64` out of same-source parity until the Rust CEL reference accepts it.
+    # C++ expression tests cover this valid Rust floating literal in the meantime.
     for source in [
         "", " ", "[]", "[1.0f64,]", "(1.0f64,2.0f64,)", "[,]", "(,)",
         "(1.0f64 2.0f64)", "1.0f64 2.0f64", "true false", "1.0f64;2.0f64",
@@ -78,7 +80,7 @@ def core_corpus():
         "true & & false", "true | | false", "1.0f64 < = 2.0f64", "1.0f64 = = 2.0f64",
         "1.0f64 . . 2.0f64", "true&/*jointness*/&false", "/* unterminated",
         "/// doc comment", "/** doc comment */true", "//! inner doc", "/*! inner doc */true",
-        "r#true", "trué", "trueλ", "1.0f64foo", "1.0f32", "1f32", "1f64",
+        "r#true", "trué", "trueλ", "1.0f64foo", "1.0f32", "1f32",
         "1", "0x1", "0b1", "0o1", "1i32", "1u8", "1.0i32", "2+3*4", "2f64+3",
         "[1.0f64][0]", "[1.0f64][0.0f64]", "([]:[f64])[0]",
         "(1.0f64,).0f64", "(1.0f64,).0e0", "(1.0f64,).184467440737095516160",

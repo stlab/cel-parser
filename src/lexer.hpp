@@ -13,7 +13,7 @@ namespace cel::parser_detail {
 /// Retains the numeric syntax independently of its converted binary64 value.
 /// Example: numeric_form::decimal describes the coalesced selector token "0.1".
 enum class numeric_form {
-    integer, ///< Unsuffixed or suffixed integer spelling, including radix prefixes.
+    integer, ///< Decimal without a dot or exponent, or a radix-prefixed spelling.
     decimal, ///< Decimal spelling with a dot and without an exponent.
     exponent ///< Decimal spelling with an exponent, with or without a dot.
 };
@@ -22,7 +22,7 @@ enum class numeric_form {
 /// The text lexer uses round-to-nearest binary64 conversion.
 /// Overflow yields positive infinity and underflow rounds to a subnormal or zero.
 /// Copying takes O(spelling.size() + suffix.size()) time and space.
-/// Integer tokens support lexical consumers and tuple selectors, not core numeric values.
+/// Decimal integer-form tokens with the f64 suffix are core numeric values.
 /// Example: numeric_literal{1.0, "1.0f64", "f64", numeric_form::decimal}.
 struct numeric_literal {
     double value;         ///< Converted scalar; the text lexer emits signs as punctuation.

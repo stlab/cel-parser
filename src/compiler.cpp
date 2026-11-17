@@ -412,7 +412,9 @@ class expression_compiler {
             builder.just(value::from(*boolean));
             advance();
         } else if (const auto* number = std::get_if<numeric_literal>(&current().value)) {
-            if (number->form == numeric_form::integer)
+            if (number->form == numeric_form::integer &&
+                (number->suffix != "f64" || number->spelling.starts_with("0b") ||
+                 number->spelling.starts_with("0o") || number->spelling.starts_with("0x")))
                 throw parse_error(error_category::unsupported_literal, start,
                                   "integer value literals are outside the bool/f64 core");
             if (!number->suffix.empty() && number->suffix != "f64")

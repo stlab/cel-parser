@@ -8,7 +8,8 @@ UTF-8 expression with `cel::parser::parse_str`; trailing input is an error.
 
 The built-in scalar types are `bool` and IEEE binary64 `f64`, represented by
 C++ `bool` and `double`. Numeric values require floating syntax such as `1.0`,
-`1e0`, or `1.0f64`. Integer literals are not converted to f64.
+`1e0`, `1.0f64`, or `1f64`. Bare integers and radix integers are not converted
+to `f64`.
 
 The core provides these exact operations:
 

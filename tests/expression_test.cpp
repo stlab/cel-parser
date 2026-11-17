@@ -137,11 +137,13 @@ TEST_CASE("retained precedence associativity casts and IEEE numeric spellings") 
 TEST_CASE("numeric values require floating literal forms without integer coercion") {
     cel::parser parser{cel::op_lookup{}};
     for (const auto& [text, span] : std::array{
-             std::pair{"1", cel::source_span{0, 1}}, std::pair{"1f64", cel::source_span{0, 4}},
+             std::pair{"1", cel::source_span{0, 1}}, std::pair{"1 as f64", cel::source_span{0, 1}},
              std::pair{"1+2.0", cel::source_span{0, 1}}, std::pair{"1.0+1", cel::source_span{4, 5}},
              std::pair{"(|x:f64|x)(1)", cel::source_span{11, 12}},
              std::pair{"0x10", cel::source_span{0, 4}}, std::pair{"0b10", cel::source_span{0, 4}},
-             std::pair{"0o10", cel::source_span{0, 4}}}) {
+             std::pair{"0o10", cel::source_span{0, 4}}, std::pair{"0b1f64", cel::source_span{0, 6}},
+             std::pair{"0o7_f64", cel::source_span{0, 7}},
+             std::pair{"0x1f64", cel::source_span{0, 6}}}) {
         CAPTURE(text);
         error_at(parser, text, cel::error_category::unsupported_literal, span);
         CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text)),
@@ -150,6 +152,28 @@ TEST_CASE("numeric values require floating literal forms without integer coercio
     CHECK(evaluate(parser, "1.0+2.0").as<double>() == 3.0);
     CHECK(evaluate(parser, "(|x:f64|x)(1.0)").as<double>() == 1.0);
     CHECK(evaluate(parser, "(1.0,2.0).0x1").as<double>() == 2.0);
+}
+
+TEST_CASE("decimal integer-form f64 literals produce floating values") {
+    cel::parser parser{cel::op_lookup{}};
+    for (const auto& [text, expected] : std::array{
+             std::pair{"1f64", 1.0}, std::pair{"0f64", 0.0}, std::pair{"1_f64", 1.0},
+             std::pair{"1__f64", 1.0}, std::pair{"1_000f64", 1000.0},
+             std::pair{"9007199254740993f64", 9007199254740992.0}, std::pair{"1e2f64", 100.0},
+             std::pair{"1f64 + 2.0", 3.0}, std::pair{"-1f64", -1.0}, std::pair{"1f64 as f64", 1.0},
+             std::pair{"(|x:f64|x)(1f64)", 1.0}}) {
+        CAPTURE(std::string_view(text));
+        CHECK(evaluate(parser, text).as<double>() == expected);
+        cel::raw_stack stack;
+        CHECK(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text))
+                  .execute(stack, {})
+                  .as<double>() == expected);
+    }
+    CHECK(std::signbit(evaluate(parser, "-0f64").as<double>()));
+    for (auto text : {"1f64x", "1f64_", "1f640", "1f32", "1.0f64x", "(1.0,2.0).1f64"}) {
+        CAPTURE(text);
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
 }
 
 TEST_CASE("postfix brackets remain host input and are not core array indexing") {

@@ -89,10 +89,10 @@ Rust LexLexer attribute handler.
 ## Numbers and punctuation
 
 Only bool and binary64 are built-in value types. The expression parser accepts
-floating forms such as `1.0`, `1e0`, and `1.0f64`, and rejects integer value
-forms, including `1`, radix integers, and `1f64`. Integer tokens remain available
-to lexical consumers and tuple selectors; their converted binary64 payload
-does not change their syntax classification.
+floating forms such as `1.0`, `1e0`, `1.0f64`, and the decimal integer-form
+`1f64`. It rejects bare integers and radix integers as values. Integer-form
+tokens remain available to lexical consumers and tuple selectors; neither their
+converted binary64 payload nor an `f64` suffix changes their syntax classification.
 
 The text lexer retains integer and decimal tokens. Its only accepted suffix is `f64`; `f32`,
 integer suffixes, and arbitrary identifier suffixes are unsupported literals.
