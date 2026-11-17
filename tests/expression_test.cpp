@@ -66,9 +66,9 @@ template <>
 struct record_adapter<::adapted_expr_point> {
     /// Returns the complete descriptor for adapted_expr_point.
     static value_type type() {
-        static const auto descriptor =
-            value_type::record("ExprPoint", std::array{record_field{"x", value_type::leaf<double>()},
-                                                       record_field{"y", value_type::leaf<double>()}});
+        static const auto descriptor = value_type::record(
+            "ExprPoint", std::array{record_field{"x", value_type::leaf<double>()},
+                                    record_field{"y", value_type::leaf<double>()}});
         return descriptor;
     }
     /// Encodes one point value in canonical field order.
@@ -77,7 +77,8 @@ struct record_adapter<::adapted_expr_point> {
     }
     /// Decodes one point value after descriptor validation.
     static ::adapted_expr_point from_value(const value& source) {
-        if (!source.type().same_shape(type())) throw std::invalid_argument("wrong expression point type");
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong expression point type");
         return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
     }
 };

@@ -80,10 +80,9 @@ template <>
 struct record_adapter<::adapted_point> {
     /// Returns the canonical nominal descriptor for adapted_point.
     static value_type type() {
-        static const auto descriptor =
-            value_type::record("AdapterPoint",
-                               std::array{record_field{"x", value_type::leaf<double>()},
-                                          record_field{"y", value_type::leaf<double>()}});
+        static const auto descriptor = value_type::record(
+            "AdapterPoint", std::array{record_field{"x", value_type::leaf<double>()},
+                                       record_field{"y", value_type::leaf<double>()}});
         return descriptor;
     }
     /// Encodes one point value in canonical field order.
@@ -92,7 +91,8 @@ struct record_adapter<::adapted_point> {
     }
     /// Decodes one point value after descriptor validation.
     static ::adapted_point from_value(const value& source) {
-        if (!source.type().same_shape(type())) throw std::invalid_argument("wrong adapted point type");
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong adapted point type");
         return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
     }
 };
@@ -101,10 +101,9 @@ template <>
 struct record_adapter<::adapted_point_alias> {
     /// Returns the canonical nominal descriptor for adapted_point_alias.
     static value_type type() {
-        static const auto descriptor =
-            value_type::record("AdapterPointAlias",
-                               std::array{record_field{"x", value_type::leaf<double>()},
-                                          record_field{"y", value_type::leaf<double>()}});
+        static const auto descriptor = value_type::record(
+            "AdapterPointAlias", std::array{record_field{"x", value_type::leaf<double>()},
+                                            record_field{"y", value_type::leaf<double>()}});
         return descriptor;
     }
     /// Encodes one alias value in canonical field order.
@@ -113,7 +112,8 @@ struct record_adapter<::adapted_point_alias> {
     }
     /// Decodes one alias value after descriptor validation.
     static ::adapted_point_alias from_value(const value& source) {
-        if (!source.type().same_shape(type())) throw std::invalid_argument("wrong adapted point alias type");
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong adapted point alias type");
         return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
     }
 };
@@ -122,10 +122,9 @@ template <>
 struct record_adapter<::adapted_point_duplicate_name> {
     /// Returns a duplicate nominal identity for registration failure tests.
     static value_type type() {
-        static const auto descriptor =
-            value_type::record("AdapterPoint",
-                               std::array{record_field{"x", value_type::leaf<double>()},
-                                          record_field{"y", value_type::leaf<double>()}});
+        static const auto descriptor = value_type::record(
+            "AdapterPoint", std::array{record_field{"x", value_type::leaf<double>()},
+                                       record_field{"y", value_type::leaf<double>()}});
         return descriptor;
     }
     /// Encodes one duplicate-name value in canonical field order.
@@ -310,13 +309,13 @@ TEST_CASE("record_adapter_registration_preserves_nominal_types_and_member_calls"
                     cel::parse_error);
     CHECK(adapted_point_calls == 0);
     CHECK(evaluate<adapted_point_alias>(std::move(mismatch)).x == 1.0);
-    lookup.register_op<double, adapted_point_alias>("sum", [](adapted_point_alias input) {
-        return input.x - input.y;
-    });
+    lookup.register_op<double, adapted_point_alias>(
+        "sum", [](adapted_point_alias input) { return input.x - input.y; });
     cel::parser parser(std::move(lookup));
     cel::raw_stack stack;
-    CHECK(parser.parse_str("AdapterPoint { y: 2.0, x: 1.0 }.sum()").execute(stack, {}).as<double>() ==
-          3.0);
+    CHECK(
+        parser.parse_str("AdapterPoint { y: 2.0, x: 1.0 }.sum()").execute(stack, {}).as<double>() ==
+        3.0);
     CHECK(parser.parse_str("AdapterPointAlias { y: 2.0, x: 1.0 }.sum()")
               .execute(stack, {})
               .as<double>() == -1.0);

@@ -244,7 +244,8 @@ public:
         auto descriptor = record_adapter<T>::type();
         if (descriptor.kind() != type_kind::record || descriptor.record_identity().empty())
             throw std::invalid_argument("record adapter type must be a nominal record");
-        insert_type(descriptor.record_identity(), std::move(descriptor));
+        auto identity = descriptor.record_identity();
+        insert_type(identity, std::move(descriptor));
     }
     /// Registers an owned complete nominal record schema, never a guessed native layout.
     /// Throws invalid_argument for empty/duplicate/reserved names or invalid field names.
