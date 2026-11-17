@@ -235,6 +235,17 @@ public:
             insert_type(name, std::move(type));
         }
     }
+    /// Registers the complete nominal schema declared by one record adapter specialization.
+    /// Throws std::invalid_argument for non-record descriptors and duplicate/reserved names.
+    /// Complexity: O(name bytes), expected map insertion.
+    /// Example: lookup.register_record_type<my_record>().
+    template <class T>
+    void register_record_type() {
+        auto descriptor = record_adapter<T>::type();
+        if (descriptor.kind() != type_kind::record || descriptor.record_identity().empty())
+            throw std::invalid_argument("record adapter type must be a nominal record");
+        insert_type(descriptor.record_identity(), std::move(descriptor));
+    }
     /// Registers an owned complete nominal record schema, never a guessed native layout.
     /// Throws invalid_argument for empty/duplicate/reserved names or invalid field names.
     /// Complexity: O(fields + field-name bytes + name bytes), expected map insertion.

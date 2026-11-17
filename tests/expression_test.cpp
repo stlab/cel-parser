@@ -49,7 +49,60 @@ struct marker {};
 struct client {
     double number;
 };
+/// Provides one adapter-backed record for parser failure tests.
+struct adapted_expr_point {
+    double x;
+    double y;
+};
+/// Provides a same-layout second nominal record.
+struct adapted_expr_point_alias {
+    double x;
+    double y;
+};
 } // namespace
+
+namespace cel {
+template <>
+struct record_adapter<::adapted_expr_point> {
+    /// Returns the complete descriptor for adapted_expr_point.
+    static value_type type() {
+        static const auto descriptor =
+            value_type::record("ExprPoint", std::array{record_field{"x", value_type::leaf<double>()},
+                                                       record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one point value in canonical field order.
+    static value to_value(const ::adapted_expr_point& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one point value after descriptor validation.
+    static ::adapted_expr_point from_value(const value& source) {
+        if (!source.type().same_shape(type())) throw std::invalid_argument("wrong expression point type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+
+template <>
+struct record_adapter<::adapted_expr_point_alias> {
+    /// Returns the complete descriptor for adapted_expr_point_alias.
+    static value_type type() {
+        static const auto descriptor = value_type::record(
+            "ExprPointAlias", std::array{record_field{"x", value_type::leaf<double>()},
+                                         record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one alias value in canonical field order.
+    static value to_value(const ::adapted_expr_point_alias& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one alias value after descriptor validation.
+    static ::adapted_expr_point_alias from_value(const value& source) {
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong expression point alias type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+} // namespace cel
 
 TEST_CASE("retained precedence associativity casts and IEEE numeric spellings") {
     cel::parser parser{cel::op_lookup{}};
@@ -273,6 +326,27 @@ TEST_CASE("registered names member selectors record permutation and source evalu
         CAPTURE(text);
         CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
     }
+}
+
+TEST_CASE("record adapter registration enforces exact nominal fields and overload identity") {
+    std::size_t calls = 0;
+    cel::op_lookup lookup;
+    lookup.register_record_type<adapted_expr_point>();
+    lookup.register_record_type<adapted_expr_point_alias>();
+    lookup.register_op<double, adapted_expr_point>("area", [&calls](adapted_expr_point input) {
+        ++calls;
+        return input.x * input.y;
+    });
+    cel::parser parser(std::move(lookup));
+    CHECK(evaluate(parser, "ExprPoint { y: 4.0, x: 3.0 }.area()").as<double>() == 12.0);
+    CHECK(calls == 1);
+    for (auto text : {"ExprPoint{x:3.0}", "ExprPoint{z:3.0,y:4.0}", "ExprPoint{x:true,y:4.0}"}) {
+        CAPTURE(text);
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
+    const auto before = calls;
+    CHECK_THROWS_AS(parser.parse_str("ExprPointAlias { y: 4.0, x: 3.0 }.area()"), cel::parse_error);
+    CHECK(calls == before);
 }
 
 TEST_CASE(

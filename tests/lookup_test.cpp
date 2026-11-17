@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
 #include "lookup_access.hpp"
+#include <cel/parser/compiler.hpp>
 #include <cel/parser/lookup.hpp>
 #include <cfenv>
 #include <cmath>
@@ -18,6 +19,21 @@ struct first {
 /// Distinguishes a second client operand with the same layout.
 struct second {
     double number;
+};
+/// Supplies one adapter-backed nominal record for parser registration tests.
+struct adapted_point {
+    double x;
+    double y;
+};
+/// Supplies a same-layout second nominal record.
+struct adapted_point_alias {
+    double x;
+    double y;
+};
+/// Supplies a duplicate adapter identity.
+struct adapted_point_duplicate_name {
+    double x;
+    double y;
 };
 /// Marks an ordinary registered function independently of its operand overloads.
 struct named_function {};
@@ -58,6 +74,72 @@ R operation(const cel::op_lookup& lookup, std::string_view name, A... arguments)
     return evaluate<R>(std::move(builder));
 }
 } // namespace
+
+namespace cel {
+template <>
+struct record_adapter<::adapted_point> {
+    /// Returns the canonical nominal descriptor for adapted_point.
+    static value_type type() {
+        static const auto descriptor =
+            value_type::record("AdapterPoint",
+                               std::array{record_field{"x", value_type::leaf<double>()},
+                                          record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one point value in canonical field order.
+    static value to_value(const ::adapted_point& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one point value after descriptor validation.
+    static ::adapted_point from_value(const value& source) {
+        if (!source.type().same_shape(type())) throw std::invalid_argument("wrong adapted point type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+
+template <>
+struct record_adapter<::adapted_point_alias> {
+    /// Returns the canonical nominal descriptor for adapted_point_alias.
+    static value_type type() {
+        static const auto descriptor =
+            value_type::record("AdapterPointAlias",
+                               std::array{record_field{"x", value_type::leaf<double>()},
+                                          record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one alias value in canonical field order.
+    static value to_value(const ::adapted_point_alias& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one alias value after descriptor validation.
+    static ::adapted_point_alias from_value(const value& source) {
+        if (!source.type().same_shape(type())) throw std::invalid_argument("wrong adapted point alias type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+
+template <>
+struct record_adapter<::adapted_point_duplicate_name> {
+    /// Returns a duplicate nominal identity for registration failure tests.
+    static value_type type() {
+        static const auto descriptor =
+            value_type::record("AdapterPoint",
+                               std::array{record_field{"x", value_type::leaf<double>()},
+                                          record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one duplicate-name value in canonical field order.
+    static value to_value(const ::adapted_point_duplicate_name& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one duplicate-name value after descriptor validation.
+    static ::adapted_point_duplicate_name from_value(const value& source) {
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong adapted point duplicate type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+} // namespace cel
 
 TEST_CASE("structural registrations reject nontrivial adapters without reserving names") {
     cel::op_lookup lookup;
@@ -211,6 +293,40 @@ TEST_CASE("declined overloads never execute and selected emitter failures propag
     lookup.register_op<double>("throwing",
                                []() -> double { throw std::runtime_error("callback"); });
     CHECK_THROWS_WITH(operation<double>(lookup, "throwing"), "callback");
+}
+
+TEST_CASE("record_adapter_registration_preserves_nominal_types_and_member_calls") {
+    cel::op_lookup lookup;
+    lookup.register_record_type<adapted_point>();
+    lookup.register_record_type<adapted_point_alias>();
+    std::size_t adapted_point_calls = 0;
+    lookup.register_op<double, adapted_point>("sum", [&adapted_point_calls](adapted_point input) {
+        ++adapted_point_calls;
+        return input.x + input.y;
+    });
+    cel::dyn_segment mismatch;
+    mismatch.just(cel::value::from(adapted_point_alias{.x = 1.0, .y = 2.0}));
+    CHECK_THROWS_AS(cel::parser_detail::lookup_access::apply(lookup, "sum", mismatch, 1, {}),
+                    cel::parse_error);
+    CHECK(adapted_point_calls == 0);
+    CHECK(evaluate<adapted_point_alias>(std::move(mismatch)).x == 1.0);
+    lookup.register_op<double, adapted_point_alias>("sum", [](adapted_point_alias input) {
+        return input.x - input.y;
+    });
+    cel::parser parser(std::move(lookup));
+    cel::raw_stack stack;
+    CHECK(parser.parse_str("AdapterPoint { y: 2.0, x: 1.0 }.sum()").execute(stack, {}).as<double>() ==
+          3.0);
+    CHECK(parser.parse_str("AdapterPointAlias { y: 2.0, x: 1.0 }.sum()")
+              .execute(stack, {})
+              .as<double>() == -1.0);
+}
+
+TEST_CASE("record_adapter_registration_rejects_duplicate_nominal_names") {
+    cel::op_lookup lookup;
+    lookup.register_record_type<adapted_point>();
+    CHECK_THROWS_AS(lookup.register_record_type<adapted_point_duplicate_name>(),
+                    std::invalid_argument);
 }
 
 TEST_CASE("nominal records and arbitrary nested registration use public runtime emitters") {

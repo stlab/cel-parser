@@ -76,8 +76,48 @@ produce and consume it separately.
 
 Use `register_record` with named `cel::record_field` descriptors for a nominal
 schema. `Name{field: expression}` then constructs that schema, and `.field`
-selects a field. Names and complete descriptors are retained; equal layouts or
-display names do not make separately identified types compatible.
+selects a field.
+
+Use `register_record_type<T>()` when `cel::record_adapter<T>` already declares
+the nominal schema:
+
+```cpp
+struct point {
+    double x;
+    double y;
+};
+
+template <>
+struct cel::record_adapter<point> {
+    static cel::value_type type() {
+        static const auto descriptor = cel::value_type::record(
+            "Point",
+            std::array{cel::record_field{"x", cel::value_type::leaf<double>()},
+                       cel::record_field{"y", cel::value_type::leaf<double>()}});
+        return descriptor;
+    }
+    static cel::value to_value(const point& source) {
+        return cel::value::record(
+            type(),
+            std::array{cel::value::from(source.x), cel::value::from(source.y)});
+    }
+    static point from_value(const cel::value& source);
+};
+
+cel::op_lookup lookup;
+lookup.register_record_type<point>();
+lookup.register_op<double, point>("length_squared",
+                                  [](point p) { return p.x * p.x + p.y * p.y; });
+```
+
+Record literals evaluate field expressions in source order, then map those
+values to the adapter schema by field name. Operation resolution still compares
+complete nominal descriptors, so same-layout records with different identities
+do not share overloads.
+
+The compiled program retains callback captures independently of `op_lookup`.
+Store owned state by value, and keep captured references alive for every
+execution that uses them.
 
 ## Choose a lower-level extension only when needed
 
