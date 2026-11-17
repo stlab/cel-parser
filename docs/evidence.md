@@ -91,8 +91,8 @@ Production code depends on the C++20 standard library, committed Unicode
 property data, and the installed `cel-runtime` package through `cel::runtime`.
 There is no Unicode shared-library dependency.
 
-Build infrastructure uses `stlab/cpp-library` release `v5.8.0` at
-`dc4fcb11051903ad73fe9cc30fd964b4f83eee20` under BSL-1.0. Its pinned scaffold
+Build infrastructure uses `stlab/cpp-library` release `v6.0.1` at
+`13be83b3d92aeb1969fb6f8d13e81b372bb57d43` under BSL-1.0. Its pinned scaffold
 provides CMake presets, doctest 2.5.3 (MIT), generated negative-compilation tests,
 CTest, exports, installation, CI, and strict Doxygen configuration.
 Doxygen-awesome-css 2.5.0 (MIT) supplies the documentation theme. CPM.cmake
