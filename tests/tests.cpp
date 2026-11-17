@@ -44,7 +44,7 @@ TEST_CASE("numbers retain scalar meaning and exact selector spelling") {
                                                      {"1f64", 1},
                                                      {"2.5f64", 2.5},
                                                      {"1e+2", 100},
-                                                     {"1_e_+_2", 100},
+                                                     {"1_e+_2", 100},
                                                      {"1_000", 1000},
                                                      {"1.", 1},
                                                      {"0xff", 255},
@@ -71,6 +71,30 @@ TEST_CASE("numbers retain scalar meaning and exact selector spelling") {
     CHECK(std::get<cel::parser_detail::numeric_literal>(t[8].value).form ==
           cel::parser_detail::numeric_form::exponent);
     CHECK(std::get<cel::parser_detail::numeric_literal>(t[9].value).suffix == "f64");
+}
+
+TEST_CASE("exponent signs precede all exponent underscores") {
+    for (auto [text, expected] :
+         std::array{std::pair{"1e+_2f64", 100.0}, std::pair{"1e__2f64", 100.0},
+                    std::pair{"1e-__2f64", 0.01}, std::pair{"1.0E+__2f64", 100.0}}) {
+        INFO(std::string_view(text));
+        auto t = collect(text);
+        REQUIRE(t.size() == 2);
+        REQUIRE(std::holds_alternative<cel::parser_detail::numeric_literal>(t[0].value));
+        auto const& number = std::get<cel::parser_detail::numeric_literal>(t[0].value);
+        CHECK(number.value == expected);
+        CHECK(number.spelling == text);
+        CHECK(t[0].span == (cel::source_span{0, std::string_view(text).size()}));
+    }
+    for (auto text : {"1e_+2f64", "1e__-2f64", "1e_+_2f64", "1.0e_+2f64", "1E__+2f64", "1_e_+_2"}) {
+        INFO(std::string_view(text));
+        auto t = collect(text);
+        REQUIRE(t.size() == 2);
+        REQUIRE(std::holds_alternative<cel::parse_error>(t[0].value));
+        auto const& error = std::get<cel::parse_error>(t[0].value);
+        CHECK(error.category() == cel::error_category::malformed_input);
+        CHECK(error.span() == (cel::source_span{0, std::string_view(text).size()}));
+    }
 }
 
 TEST_CASE("binary64 boundary conversion preserves Rust infinity and zero results") {

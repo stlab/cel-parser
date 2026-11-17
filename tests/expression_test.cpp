@@ -176,6 +176,20 @@ TEST_CASE("decimal integer-form f64 literals produce floating values") {
     }
 }
 
+TEST_CASE("float exponent signs cannot follow underscores") {
+    cel::parser parser{cel::op_lookup{}};
+    for (const auto& [text, expected] :
+         std::array{std::pair{"1e+_2f64", 100.0}, std::pair{"1e__2f64", 100.0},
+                    std::pair{"1e-__2f64", 0.01}, std::pair{"1.0E+__2f64", 100.0}}) {
+        CAPTURE(std::string_view(text));
+        CHECK(evaluate(parser, text).as<double>() == expected);
+    }
+    for (auto text : {"1e_+2f64", "1e__-2f64", "1e_+_2f64", "1.0e_+2f64", "1E__+2f64", "1_e_+_2"}) {
+        CAPTURE(std::string_view(text));
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
+}
+
 TEST_CASE("postfix brackets remain host input and are not core array indexing") {
     cel::parser parser{cel::op_lookup{}};
     const auto input = tokens("[1.0][0.0]");

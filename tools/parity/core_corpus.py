@@ -6,17 +6,21 @@ def core_corpus():
     """Returns authored grammar templates and bounded Cartesian intrinsic combinations.
 
     Core registers no client records or functions; record grammar remains in client fixtures.
-    Rejection cases require a C++ parse failure, while all successes compare real observations.
+    C++-only rejections require a C++ parse failure. Shared-invalid cases require
+    both parsers to reject at the same span; successes compare real observations.
     Complexity: O(corpus size) time and result space.
     """
     rows = []
 
-    def add(family, source, *, reject=False):
-        """Appends an unchanged source with a required success or checked core rejection."""
+    def add(family, source, *, reject=False, category=None):
+        """Appends an unchanged source with a required success or rejection."""
         row = {"id": f"core-{family}-{len(rows)}", "family": f"core-{family}",
                "source": source, "setup": "core"}
         if reject:
             row["cpp_reject"] = "outside bool/f64 core grammar or exact operand types"
+        if category is not None:
+            row["category"] = category
+            row["status"] = "parse"
         rows.append(row)
 
     for left, operator, right in product(
@@ -59,6 +63,7 @@ def core_corpus():
     for source in [
         "1.0", "1.", "1e0", "1.0_f64", "1_0.0f64", "1.0e+0f64",
         "1e-9999f64", "5e-324f64", "1e9999f64", "-0.0f64",
+        "1e+_2f64", "1e__2f64", "1e-__2f64", "1.0E+__2f64",
         "1f64", "1_f64", "0f64", "1__f64", "1_000f64", "9007199254740993f64",
         "340_282_366_920_938_463_463_374_607_431_768_211_456f64",
         "-0f64", "1f64+2.0f64", "1f64..2f64", "1f64..=2f64",
@@ -70,6 +75,9 @@ def core_corpus():
         "((1.0f64,2.0f64),).0.1", "(|λ:f64|λ)(1.0f64)",
     ]:
         add("lexical-positive", source)
+    for source in ["1e_+2f64", "1e__-2f64", "1e_+_2f64", "1.0e_+2f64",
+                   "1E__+2f64", "1_e_+_2"]:
+        add("exponent-invalid", source, category="malformed_input")
     for source in [
         "", " ", "[]", "[1.0f64,]", "(1.0f64,2.0f64,)", "[,]", "(,)",
         "(1.0f64 2.0f64)", "1.0f64 2.0f64", "true false", "1.0f64;2.0f64",

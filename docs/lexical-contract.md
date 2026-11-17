@@ -97,9 +97,10 @@ converted binary64 payload nor an `f64` suffix changes their syntax classificati
 The text lexer retains integer and decimal tokens. Its only accepted suffix is `f64`; `f32`,
 integer suffixes, and arbitrary identifier suffixes are unsupported literals.
 Decimal, binary `0b`, octal `0o`, and hexadecimal `0x` spellings retain their
-source spelling and underscores. Radix prefixes are lowercase. The producer's
-permissive underscore placements remain accepted, including `0o_17`, `1_`,
-and `1_e_+_2`.
+source spelling and underscores. Radix prefixes are lowercase. Underscores are
+accepted in forms such as `0o_17`, `1_`, and `1_e+_2`. An exponent's optional
+sign must immediately follow `e` or `E`, before any underscores; `1e_+2` is
+malformed.
 
 Conversion rounds to nearest binary64. Overflow yields positive infinity;
 underflow rounds to a subnormal or zero. Signs are separate punctuation.

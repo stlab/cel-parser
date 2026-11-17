@@ -376,6 +376,7 @@ void lex_lexer::number() {
                 ++position_;
         }
     }
+    bool misplaced_exponent_sign = false;
     if (base == 10 && position_ < text.size() &&
         (text[position_] == 'e' || text[position_] == 'E')) {
         auto end = position_ + 1;
@@ -389,6 +390,7 @@ void lex_lexer::number() {
                 exponent_digit = true;
                 ++end;
             } else if ((ch == '+' || ch == '-') && !sign && !exponent_digit) {
+                misplaced_exponent_sign = end != position_ + 1;
                 sign = true;
                 ++end;
             } else
@@ -410,6 +412,11 @@ void lex_lexer::number() {
     if (const auto ch = decode(text, position_); ch && ident_continue(ch->value)) {
         fail(error_category::malformed_input, {position_, position_ + ch->size},
              "invalid number boundary");
+        return;
+    }
+    if (form == numeric_form::exponent && misplaced_exponent_sign) {
+        fail(error_category::malformed_input, {start, position_},
+             "an exponent sign must immediately follow e or E");
         return;
     }
     const auto suffix = text.substr(suffix_start, position_ - suffix_start);
