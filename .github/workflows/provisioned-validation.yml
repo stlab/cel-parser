@@ -27,7 +27,7 @@ jobs:
         run: |
           test -f "$REFERENCE_SOURCE/cel-parser/Cargo.toml"
           test -f "$REFERENCE_SOURCE/Cargo.lock"
-      - name: Debug and Release unit, negative compilation, parity, and installed clients
+      - name: Debug and Release unit, negative compilation, and parity
         shell: bash
         env:
           REFERENCE_SOURCE: ${{ inputs.reference_source }}

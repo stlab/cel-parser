@@ -1,8 +1,8 @@
 # Validate retained contracts and execution costs {#parser_validation}
 
 This guide serves library maintainers. It separates public cross-language
-exact-source subset checks, diagnostic differences, installed consumption,
-and local measurements.
+exact-source subset checks, diagnostic differences, package artifacts, and
+local measurements.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -113,45 +113,12 @@ exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
-## Verify installed consumption
+## Check package artifacts
 
-`installed_consumer` installs parser and runtime output from the same build tree
-into an isolated prefix. It rejects leaked checkout/sibling paths
-and verifies both imported libraries and headers resolve to that prefix.
-Five package-only clients cover tokens, lookup, compiled composites/callables,
-the decoded scalar cache, and execution measurements. They link only
-`cel::parser`; `find_dependency` finds the runtime transitively.
-The runtime shares the parser's compiler and instrumentation flags.
-To check both libraries and installed clients under ASan+UBSan:
-
-```sh
-cmake -S . -B build/parser-sanitized -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
-  "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
-  "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined" \
-  -DCEL_PARSER_ENABLE_PARITY=ON \
-  "-DCEL_PARSER_REFERENCE_SOURCE=$REFERENCE_SOURCE" \
-  -DCEL_PARSER_BUILD_MEASUREMENTS=ON
-cmake --build build/parser-sanitized
-ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 \
-  ctest --test-dir build/parser-sanitized --output-on-failure
-```
-
-`detect_leaks=0` is required on macOS, which does not support LeakSanitizer.
-On a platform with supported LeakSanitizer, omit that override to retain leak
-detection. Confirm that parser tests and installed clients pass.
-
-Set `COMBINED_PREFIX` to the absolute installation prefix containing both
-libraries. To repeat with packages you installed yourself:
-
-```sh
-cmake -S tests/installed_consumer -B build/package-client -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$COMBINED_PREFIX"
-cmake --build build/package-client
-ctest --test-dir build/package-client --output-on-failure
-```
-
-No checkout include directory or explicit runtime target is required.
+The generated CI workflow installs the parser into a temporary prefix and
+checks the package artifacts with the `cpp-library` package test. It does not
+configure an installed consumer or install the CPM dependency closure. The
+default test suite checks source-tree consumption instead.
 
 ## Measure optimized warmed execution
 
@@ -178,8 +145,7 @@ No timing threshold appears in unit tests.
 | `dynamic-callable` | `\|x:f64\|x*2.0+1.0`; shared callable, boxed argument 2.0, public dynamic invocation |
 
 Keep platform/build-specific timings in the handoff/report, not portable speed
-claims. Both standalone and installed measurement clients run without analyzer
-exclusions.
+claims. The standalone measurement client runs without analyzer exclusions.
 
 ## Provision CI inputs explicitly
 
@@ -188,8 +154,8 @@ Runners need Git read access to the runtime repository, including any
 authentication required for a private repository.
 The separate manual workflow requires a Rust reference source path, including
 `Cargo.lock`, on an already provisioned Unix self-hosted runner.
-It runs Debug/Release, negative-compilation tests, installed clients, parity,
-measurements, matching sanitizer tests, lint, driver Cargo checks, and strict docs.
+It runs Debug/Release, negative-compilation tests, parity, measurements,
+matching sanitizer tests, lint, driver Cargo checks, and strict docs.
 It serializes manual dispatches without cancelling an active run and limits
 each job to 60 minutes. It does not provision a runner, Git credentials, or the
 Rust checkout, or claim Windows coverage.
