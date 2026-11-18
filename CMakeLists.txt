@@ -21,7 +21,13 @@ endif()
 
 # Both cel packages share CEL_INSTALL; choose its default before adding dependencies.
 option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVEL})
-CPMAddPackage("gh:stlab/cel-runtime@1.1.0")
+# Keep the public runtime dependency in the recursive install closure.
+CPMAddPackage(
+    NAME cel-runtime
+    GITHUB_REPOSITORY stlab/cel-runtime
+    GIT_TAG v1.1.0
+    EXCLUDE_FROM_ALL NO
+)
 
 # Setup library
 cpp_library_setup(
@@ -58,11 +64,15 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
         add_library(header_${header_id} OBJECT "${header_source}")
         target_link_libraries(header_${header_id} PRIVATE cel::parser)
     endforeach()
+    configure_file(tests/installed_consumer.cmake.in installed_consumer.cmake @ONLY)
     configure_file(tests/source_consumer.cmake.in source_consumer.cmake @ONLY)
+    add_test(NAME installed_consumer
+        COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
+            -P "${CMAKE_CURRENT_BINARY_DIR}/installed_consumer.cmake")
     add_test(NAME source_consumer
         COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
             -P "${CMAKE_CURRENT_BINARY_DIR}/source_consumer.cmake")
-    set_tests_properties(source_consumer tests PROPERTIES TIMEOUT 180)
+    set_tests_properties(installed_consumer source_consumer tests PROPERTIES TIMEOUT 180)
 endif()
 
 option(CEL_PARSER_BUILD_MEASUREMENTS "Build execution timing workloads" OFF)

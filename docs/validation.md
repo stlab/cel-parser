@@ -1,8 +1,8 @@
 # Validate retained contracts and execution costs {#parser_validation}
 
 This guide serves library maintainers. It separates public cross-language
-exact-source subset checks, diagnostic differences, package artifacts, and
-local measurements.
+exact-source subset checks, diagnostic differences, installed consumption,
+and local measurements.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -116,12 +116,17 @@ exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
-## Check package artifacts
+## Verify installed consumption
 
-The generated CI workflow installs the parser into a temporary prefix and
-checks the package artifacts with the `cpp-library` package test. It does not
-configure an installed consumer or install the CPM dependency closure. The
-default test suite checks source-tree consumption instead.
+The `installed_consumer` test installs the parser and runtime from the same
+build into an isolated prefix. It configures a separate consumer without
+source-tree include paths, checks that both imported packages resolve to the
+prefix, builds five clients, and runs them. It also verifies that the parser
+package rejects a runtime older than 1.1.0.
+
+The generated CI workflow separately checks installed package artifacts with
+the `cpp-library` package test. That check complements the installed-consumer
+test; it does not configure a consumer.
 
 ## Measure optimized warmed execution
 
