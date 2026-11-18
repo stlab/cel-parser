@@ -11,6 +11,9 @@ sources:
   - "CMakePresets.json:15-28"
 tags: ["cmake", "testing", "parity", "cache"]
 tier: knowledge
+votes_up: 1
+votes_down: 0
+last_voted: 2026-11-18T06:46:40Z
 ---
 
 # Test preset can inherit cached parity flag

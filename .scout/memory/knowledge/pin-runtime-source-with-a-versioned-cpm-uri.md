@@ -20,6 +20,9 @@ relationships:
     target: "Keep cel-runtime out of parser installation"
   - type: relates_to
     target: "Initialize shared installation defaults before CPM runtime and parser targets"
+votes_up: 1
+votes_down: 0
+last_voted: 2026-11-18T06:46:38Z
 ---
 
 # Pin runtime source with a versioned CPM URI

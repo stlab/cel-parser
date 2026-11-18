@@ -18,8 +18,8 @@ sources:
 tags: ["cmake", "cpm", "dependencies", "installation"]
 tier: knowledge
 votes_up: 1
-votes_down: 1
-last_voted: 2026-11-18T06:30:35Z
+votes_down: 2
+last_voted: 2026-11-18T06:46:42Z
 superseded_by: "[[Keep cel-runtime out of parser installation]]"
 ---
 

@@ -16,8 +16,8 @@ relationships:
   - type: relates_to
     target: "Initialize shared installation defaults before CPM runtime and parser targets"
 votes_up: 0
-votes_down: 1
-last_voted: 2026-11-18T06:30:37Z
+votes_down: 2
+last_voted: 2026-11-18T06:46:45Z
 superseded_by: "[[Pin runtime source with a versioned CPM URI]]"
 ---
 

@@ -18,6 +18,9 @@ relationships:
     target: "Pin CPM dependencies to reviewed commits"
   - type: relates_to
     target: "Initialize shared installation defaults before CPM runtime and parser targets"
+votes_up: 1
+votes_down: 0
+last_voted: 2026-11-18T06:46:33Z
 ---
 
 # Keep cel-runtime out of parser installation
