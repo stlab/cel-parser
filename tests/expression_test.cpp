@@ -370,8 +370,8 @@ TEST_CASE("registered names member selectors record permutation and source evalu
 TEST_CASE("record adapter registration enforces exact nominal fields and overload identity") {
     std::size_t calls = 0;
     cel::op_lookup lookup;
-    lookup.register_record_type<adapted_expr_point>();
-    lookup.register_record_type<adapted_expr_point_alias>();
+    lookup.register_record_type<adapted_expr_point>("ExprPoint");
+    lookup.register_record_type<adapted_expr_point_alias>("ExprPointAlias");
     lookup.register_op<double, adapted_expr_point>("area", [&calls](adapted_expr_point input) {
         ++calls;
         return input.x * input.y;

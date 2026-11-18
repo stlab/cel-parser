@@ -147,6 +147,12 @@ class op_lookup {
     /// Inserts an owned leaf or record name; duplicate/reserved names are rejected.
     /// Complexity: O(name bytes), expected map insertion plus metadata release on failure.
     void insert_type(std::string_view name, value_type type);
+    /// Inserts a nominal record under a CEL source name after validating its fields.
+    /// Throws invalid_argument for an unspellable source name or field name.
+    /// Complexity: expected O(V + E + S + name bytes) time and O(V + E + L) auxiliary
+    /// space, where V and E are visited descriptor references and edges, S is field-name
+    /// bytes, and L is the longest field or source name.
+    void insert_record_type(std::string_view name, value_type type);
     /// Keeps the first function emitter while admitting new marker types for that same name.
     /// Throws invalid_argument if a marker identity already names a distinct function.
     /// Failure leaves existing bindings and marker reservations unchanged.
@@ -235,21 +241,27 @@ public:
             insert_type(name, std::move(type));
         }
     }
-    /// Registers the complete nominal schema declared by one record adapter specialization.
-    /// Throws std::invalid_argument for non-record descriptors and duplicate/reserved names.
-    /// Complexity: O(name bytes), expected map insertion.
-    /// Example: lookup.register_record_type<my_record>().
+    /// Registers the adapter's nominal schema under a CEL source name.
+    /// The source name is independent of the adapter's nominal identity.
+    /// Throws std::invalid_argument for a non-record descriptor, a duplicate, reserved,
+    /// or unspellable source name, or a field name that is not a CEL identifier.
+    /// Complexity: expected O(V + E + S + name bytes) time and O(V + E + L) auxiliary
+    /// space, where V and E are visited descriptor references and edges, S is field-name
+    /// bytes, and L is the longest field or source name.
+    /// Example: lookup.register_record_type<my_record>("Record").
     template <class T>
-    void register_record_type() {
+    void register_record_type(std::string_view name) {
         auto descriptor = record_adapter<T>::type();
         if (descriptor.kind() != type_kind::record || descriptor.record_identity().empty())
             throw std::invalid_argument("record adapter type must be a nominal record");
-        auto identity = descriptor.record_identity();
-        insert_type(identity, std::move(descriptor));
+        insert_record_type(name, std::move(descriptor));
     }
     /// Registers an owned complete nominal record schema, never a guessed native layout.
-    /// Throws invalid_argument for empty/duplicate/reserved names or invalid field names.
-    /// Complexity: O(fields + field-name bytes + name bytes), expected map insertion.
+    /// Throws invalid_argument for duplicate, reserved, or unspellable source names,
+    /// duplicate field names, or field names that cannot be written as CEL identifiers.
+    /// Complexity: expected O(V + E + S + name bytes) time and O(V + E + L) auxiliary
+    /// space, where V and E are visited descriptor references and edges, S is field-name
+    /// bytes, and L is the longest field or source name.
     /// Example: lookup.register_record("Flag", std::array{record_field{"on",
     /// value_type::leaf<bool>()}}).
     void register_record(std::string_view name, std::span<const record_field> fields);

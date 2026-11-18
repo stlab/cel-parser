@@ -76,10 +76,13 @@ produce and consume it separately.
 
 Use `register_record` with named `cel::record_field` descriptors for a nominal
 schema. `Name{field: expression}` then constructs that schema, and `.field`
-selects a field.
+selects a field. Record source names must name a CEL constructor, and field
+names throughout the schema must be CEL identifiers. Registration rejects
+names that expressions cannot spell.
 
-Use `register_record_type<T>()` when `cel::record_adapter<T>` already declares
-the nominal schema:
+Use `register_record_type<T>("Name")` when `cel::record_adapter<T>` already
+declares the nominal schema. The CEL source name is independent of the
+adapter's nominal identity:
 
 ```cpp
 struct point {
@@ -91,7 +94,7 @@ template <>
 struct cel::record_adapter<point> {
     static cel::value_type type() {
         static const auto descriptor = cel::value_type::record(
-            "Point",
+            "sample.point",
             std::array{cel::record_field{"x", cel::value_type::leaf<double>()},
                        cel::record_field{"y", cel::value_type::leaf<double>()}});
         return descriptor;
@@ -105,7 +108,7 @@ struct cel::record_adapter<point> {
 };
 
 cel::op_lookup lookup;
-lookup.register_record_type<point>();
+lookup.register_record_type<point>("Point");
 lookup.register_op<double, point>("length_squared",
                                   [](point p) { return p.x * p.x + p.y * p.y; });
 ```
