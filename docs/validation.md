@@ -12,7 +12,10 @@ Configure Git with read access to its repository; no runtime installation is
 required.
 Set `REFERENCE_SOURCE` to your local `cel-rs` checkout. The accepted reference
 starts at `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`; the P4 selector diagnostic
-correction is `1516e45f0799927043352ffeeb2b13d58ac66526`.
+correction is `1516e45f0799927043352ffeeb2b13d58ac66526`. It must also contain
+the integer-form float fix `c9a45c479a70ef31c9b7b2d86b9f407d46074370` and the
+exponent-sign fix `e1ea1d3083fe97fd26b49352e62c88c24ffa7913` in its `HEAD`
+history. `prepare_reference.py` verifies both commits before invoking Cargo.
 Use an ordinary C++20 build without fast-math:
 
 ```sh
