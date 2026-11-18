@@ -21,12 +21,8 @@ endif()
 
 # Both cel packages share CEL_INSTALL; choose its default before adding dependencies.
 option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVEL})
-# Keep the dependency eligible for installation; CPM shorthand excludes it.
-CPMAddPackage(
-    NAME cel-runtime
-    GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG e67c9d5793367b7f5b6f0deaba1ca43b57e40933
-)
+# Keep the dependency eligible for installation; CPM shorthand excludes it by default.
+CPMAddPackage(URI "gh:stlab/cel-runtime@1.1.0" EXCLUDE_FROM_ALL NO)
 
 # Setup library
 cpp_library_setup(
@@ -47,7 +43,7 @@ cpp_library_setup(
         "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"
         "STRIP_FROM_INC_PATH = ${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-cpp_library_map_dependency("cel::runtime" "cel-runtime 1.0.1 CONFIG")
+cpp_library_map_dependency("cel::runtime" "cel-runtime 1.1.0 CONFIG")
 target_link_libraries(parser PUBLIC cel::runtime)
 if(TARGET parity_driver_test)
     target_sources(parity_driver_test PRIVATE tools/parity/driver.cpp)
