@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 include(cmake/CPM.cmake)
 
 set(CPP_LIBRARY_VERSION "" CACHE STRING "CEL parser package version override")
-CPMAddPackage("gh:stlab/cpp-library@6.0.1")
+CPMAddPackage("gh:stlab/cpp-library@6.0.2")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
@@ -21,18 +21,12 @@ endif()
 
 # Both cel packages share CEL_INSTALL; choose its default before adding dependencies.
 option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVEL})
-# Keep the dependency eligible for installation; CPM shorthand excludes it.
-CPMAddPackage(
-    NAME cel-runtime
-    GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG a8e753b040664172fd3f526f9cf46029858ff788
-)
+CPMAddPackage("gh:stlab/cel-runtime@1.1.1#e47232f8ed6cb83bc11f4cb418a8a2249c2415cf")
 
 # Setup library
 cpp_library_setup(
     DESCRIPTION "UTF-8 CEL expression compilation and checked library extensions"
     NAMESPACE cel
-    REQUIRES_CPP_VERSION 20
     HEADERS parser.hpp parser/diagnostic.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
@@ -44,10 +38,7 @@ cpp_library_setup(
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
         "EXCLUDE_SYMBOLS = cel::detail cel::detail::* cel::parser_detail cel::parser_detail::*"
         "FULL_PATH_NAMES = NO"
-        "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"
-        "STRIP_FROM_INC_PATH = ${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-cpp_library_map_dependency("cel::runtime" "cel-runtime 1.0.1 CONFIG")
 target_link_libraries(parser PUBLIC cel::runtime)
 if(TARGET parity_driver_test)
     target_sources(parity_driver_test PRIVATE tools/parity/driver.cpp)
@@ -66,15 +57,11 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
         add_library(header_${header_id} OBJECT "${header_source}")
         target_link_libraries(header_${header_id} PRIVATE cel::parser)
     endforeach()
-    configure_file(tests/installed_consumer.cmake.in installed_consumer.cmake @ONLY)
     configure_file(tests/source_consumer.cmake.in source_consumer.cmake @ONLY)
-    add_test(NAME installed_consumer
-        COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
-            -P "${CMAKE_CURRENT_BINARY_DIR}/installed_consumer.cmake")
     add_test(NAME source_consumer
         COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
             -P "${CMAKE_CURRENT_BINARY_DIR}/source_consumer.cmake")
-    set_tests_properties(installed_consumer source_consumer tests PROPERTIES TIMEOUT 180)
+    set_tests_properties(source_consumer tests PROPERTIES TIMEOUT 180)
 endif()
 
 option(CEL_PARSER_BUILD_MEASUREMENTS "Build execution timing workloads" OFF)

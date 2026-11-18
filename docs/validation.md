@@ -1,8 +1,8 @@
 # Validate retained contracts and execution costs {#parser_validation}
 
 This guide serves library maintainers. It separates public cross-language
-exact-source subset checks, diagnostic differences, installed consumption,
-and local measurements.
+exact-source subset checks, diagnostic differences, source consumption, and
+local measurements.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -12,7 +12,10 @@ Configure Git with read access to its repository; no runtime installation is
 required.
 Set `REFERENCE_SOURCE` to your local `cel-rs` checkout. The accepted reference
 starts at `03d658f8b12acabe1d6a2503281e7c86cf00b6a3`; the P4 selector diagnostic
-correction is `1516e45f0799927043352ffeeb2b13d58ac66526`.
+correction is `1516e45f0799927043352ffeeb2b13d58ac66526`. It must also contain
+the integer-form float fix `c9a45c479a70ef31c9b7b2d86b9f407d46074370` and the
+exponent-sign fix `e1ea1d3083fe97fd26b49352e62c88c24ffa7913` in its `HEAD`
+history. `prepare_reference.py` verifies both commits before invoking Cargo.
 Use an ordinary C++20 build without fast-math:
 
 ```sh
@@ -113,45 +116,19 @@ exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
-## Verify installed consumption
+## Verify source consumption
 
-`installed_consumer` installs parser and runtime output from the same build tree
-into an isolated prefix. It rejects leaked checkout/sibling paths
-and verifies both imported libraries and headers resolve to that prefix.
-Five package-only clients cover tokens, lookup, compiled composites/callables,
-the decoded scalar cache, and execution measurements. They link only
-`cel::parser`; `find_dependency` finds the runtime transitively.
-The runtime shares the parser's compiler and instrumentation flags.
-To check both libraries and installed clients under ASan+UBSan:
+The `source_consumer` test adds the parser as a subproject, confirms that the
+parser and runtime targets are source-built with installation disabled, then
+builds and runs a client. It doesn't test package installation or downstream
+package discovery.
 
-```sh
-cmake -S . -B build/parser-sanitized -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
-  "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
-  "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined" \
-  -DCEL_PARSER_ENABLE_PARITY=ON \
-  "-DCEL_PARSER_REFERENCE_SOURCE=$REFERENCE_SOURCE" \
-  -DCEL_PARSER_BUILD_MEASUREMENTS=ON
-cmake --build build/parser-sanitized
-ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 \
-  ctest --test-dir build/parser-sanitized --output-on-failure
-```
-
-`detect_leaks=0` is required on macOS, which does not support LeakSanitizer.
-On a platform with supported LeakSanitizer, omit that override to retain leak
-detection. Confirm that parser tests and installed clients pass.
-
-Set `COMBINED_PREFIX` to the absolute installation prefix containing both
-libraries. To repeat with packages you installed yourself:
-
-```sh
-cmake -S tests/installed_consumer -B build/package-client -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$COMBINED_PREFIX"
-cmake --build build/package-client
-ctest --test-dir build/package-client --output-on-failure
-```
-
-No checkout include directory or explicit runtime target is required.
+The `cpp-library`-generated package check verifies that the parser component
+is present in the install tree. It doesn't validate consumer discovery or
+runtime availability; `find_dependency(cel-runtime)` is expected to fail
+because CPM excludes the runtime from recursive installation by default. We
+don't maintain an installed-consumer test. Address installation failures if a
+client reports one.
 
 ## Measure optimized warmed execution
 
@@ -178,8 +155,7 @@ No timing threshold appears in unit tests.
 | `dynamic-callable` | `\|x:f64\|x*2.0+1.0`; shared callable, boxed argument 2.0, public dynamic invocation |
 
 Keep platform/build-specific timings in the handoff/report, not portable speed
-claims. Both standalone and installed measurement clients run without analyzer
-exclusions.
+claims. The standalone measurement client runs without analyzer exclusions.
 
 ## Provision CI inputs explicitly
 
@@ -188,8 +164,8 @@ Runners need Git read access to the runtime repository, including any
 authentication required for a private repository.
 The separate manual workflow requires a Rust reference source path, including
 `Cargo.lock`, on an already provisioned Unix self-hosted runner.
-It runs Debug/Release, negative-compilation tests, installed clients, parity,
-measurements, matching sanitizer tests, lint, driver Cargo checks, and strict docs.
+It runs Debug/Release, negative-compilation tests, parity, measurements,
+matching sanitizer tests, lint, driver Cargo checks, and strict docs.
 It serializes manual dispatches without cancelling an active run and limits
 each job to 60 minutes. It does not provision a runner, Git credentials, or the
 Rust checkout, or claim Windows coverage.

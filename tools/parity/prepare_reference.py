@@ -6,11 +6,32 @@ import shutil
 import subprocess
 
 
+NUMERIC_FIX_COMMITS = (
+    "c9a45c479a70ef31c9b7b2d86b9f407d46074370",
+    "e1ea1d3083fe97fd26b49352e62c88c24ffa7913",
+)
+
+
+def verify_numeric_fixes(source):
+    """Requires both Rust numeric-parity fixes in the reference checkout."""
+    for commit in NUMERIC_FIX_COMMITS:
+        result = subprocess.run(
+            ["git", "-C", str(source), "merge-base", "--is-ancestor", commit, "HEAD"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Rust reference must contain numeric-parity commit {commit} in HEAD history")
+
+
 def prepare(source, build):
     """Builds core packages from canonical paths and locks completed manifest transitions.
 
     Seeds changed or unfinished manifests from the canonical lockfile. Repeated successful
-    preparations require the generated resolved lock unchanged. Never writes the source checkout.
+    preparations require the generated resolved lock unchanged. Requires both numeric-parity
+    fixes in the Rust reference history. Never writes the source checkout.
     """
     source, build = Path(source).resolve(), Path(build).resolve()
     for package in ("cel-parser", "cel-runtime"):
@@ -18,6 +39,7 @@ def prepare(source, build):
             raise FileNotFoundError(f"required Rust reference package: {source / package}")
     if not (source / "Cargo.lock").is_file():
         raise FileNotFoundError("enabled parity gate requires the reference Cargo.lock")
+    verify_numeric_fixes(source)
     cargo = shutil.which("cargo")
     if cargo is None:
         raise FileNotFoundError("enabled parity gate requires Cargo")

@@ -49,7 +49,61 @@ struct marker {};
 struct client {
     double number;
 };
+/// Provides one adapter-backed record for parser failure tests.
+struct adapted_expr_point {
+    double x;
+    double y;
+};
+/// Provides a same-layout second nominal record.
+struct adapted_expr_point_alias {
+    double x;
+    double y;
+};
 } // namespace
+
+namespace cel {
+template <>
+struct record_adapter<::adapted_expr_point> {
+    /// Returns the complete descriptor for adapted_expr_point.
+    static value_type type() {
+        static const auto descriptor = value_type::record(
+            "ExprPoint", std::array{record_field{"x", value_type::leaf<double>()},
+                                    record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one point value in canonical field order.
+    static value to_value(const ::adapted_expr_point& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one point value after descriptor validation.
+    static ::adapted_expr_point from_value(const value& source) {
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong expression point type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+
+template <>
+struct record_adapter<::adapted_expr_point_alias> {
+    /// Returns the complete descriptor for adapted_expr_point_alias.
+    static value_type type() {
+        static const auto descriptor = value_type::record(
+            "ExprPointAlias", std::array{record_field{"x", value_type::leaf<double>()},
+                                         record_field{"y", value_type::leaf<double>()}});
+        return descriptor;
+    }
+    /// Encodes one alias value in canonical field order.
+    static value to_value(const ::adapted_expr_point_alias& source) {
+        return value::record(type(), std::array{value::from(source.x), value::from(source.y)});
+    }
+    /// Decodes one alias value after descriptor validation.
+    static ::adapted_expr_point_alias from_value(const value& source) {
+        if (!source.type().same_shape(type()))
+            throw std::invalid_argument("wrong expression point alias type");
+        return {.x = source.field("x").as<double>(), .y = source.field("y").as<double>()};
+    }
+};
+} // namespace cel
 
 TEST_CASE("retained precedence associativity casts and IEEE numeric spellings") {
     cel::parser parser{cel::op_lookup{}};
@@ -83,11 +137,13 @@ TEST_CASE("retained precedence associativity casts and IEEE numeric spellings") 
 TEST_CASE("numeric values require floating literal forms without integer coercion") {
     cel::parser parser{cel::op_lookup{}};
     for (const auto& [text, span] : std::array{
-             std::pair{"1", cel::source_span{0, 1}}, std::pair{"1f64", cel::source_span{0, 4}},
+             std::pair{"1", cel::source_span{0, 1}}, std::pair{"1 as f64", cel::source_span{0, 1}},
              std::pair{"1+2.0", cel::source_span{0, 1}}, std::pair{"1.0+1", cel::source_span{4, 5}},
              std::pair{"(|x:f64|x)(1)", cel::source_span{11, 12}},
              std::pair{"0x10", cel::source_span{0, 4}}, std::pair{"0b10", cel::source_span{0, 4}},
-             std::pair{"0o10", cel::source_span{0, 4}}}) {
+             std::pair{"0o10", cel::source_span{0, 4}}, std::pair{"0b1f64", cel::source_span{0, 6}},
+             std::pair{"0o7_f64", cel::source_span{0, 7}},
+             std::pair{"0x1f64", cel::source_span{0, 6}}}) {
         CAPTURE(text);
         error_at(parser, text, cel::error_category::unsupported_literal, span);
         CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text)),
@@ -96,6 +152,42 @@ TEST_CASE("numeric values require floating literal forms without integer coercio
     CHECK(evaluate(parser, "1.0+2.0").as<double>() == 3.0);
     CHECK(evaluate(parser, "(|x:f64|x)(1.0)").as<double>() == 1.0);
     CHECK(evaluate(parser, "(1.0,2.0).0x1").as<double>() == 2.0);
+}
+
+TEST_CASE("decimal integer-form f64 literals produce floating values") {
+    cel::parser parser{cel::op_lookup{}};
+    for (const auto& [text, expected] : std::array{
+             std::pair{"1f64", 1.0}, std::pair{"0f64", 0.0}, std::pair{"1_f64", 1.0},
+             std::pair{"1__f64", 1.0}, std::pair{"1_000f64", 1000.0},
+             std::pair{"9007199254740993f64", 9007199254740992.0}, std::pair{"1e2f64", 100.0},
+             std::pair{"1f64 + 2.0", 3.0}, std::pair{"-1f64", -1.0}, std::pair{"1f64 as f64", 1.0},
+             std::pair{"(|x:f64|x)(1f64)", 1.0}}) {
+        CAPTURE(std::string_view(text));
+        CHECK(evaluate(parser, text).as<double>() == expected);
+        cel::raw_stack stack;
+        CHECK(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text))
+                  .execute(stack, {})
+                  .as<double>() == expected);
+    }
+    CHECK(std::signbit(evaluate(parser, "-0f64").as<double>()));
+    for (auto text : {"1f64x", "1f64_", "1f640", "1f32", "1.0f64x", "(1.0,2.0).1f64"}) {
+        CAPTURE(text);
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
+}
+
+TEST_CASE("float exponent signs cannot follow underscores") {
+    cel::parser parser{cel::op_lookup{}};
+    for (const auto& [text, expected] :
+         std::array{std::pair{"1e+_2f64", 100.0}, std::pair{"1e__2f64", 100.0},
+                    std::pair{"1e-__2f64", 0.01}, std::pair{"1.0E+__2f64", 100.0}}) {
+        CAPTURE(std::string_view(text));
+        CHECK(evaluate(parser, text).as<double>() == expected);
+    }
+    for (auto text : {"1e_+2f64", "1e__-2f64", "1e_+_2f64", "1.0e_+2f64", "1E__+2f64", "1_e_+_2"}) {
+        CAPTURE(std::string_view(text));
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
 }
 
 TEST_CASE("postfix brackets remain host input and are not core array indexing") {
@@ -273,6 +365,27 @@ TEST_CASE("registered names member selectors record permutation and source evalu
         CAPTURE(text);
         CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
     }
+}
+
+TEST_CASE("record adapter registration enforces exact nominal fields and overload identity") {
+    std::size_t calls = 0;
+    cel::op_lookup lookup;
+    lookup.register_record_type<adapted_expr_point>("ExprPoint");
+    lookup.register_record_type<adapted_expr_point_alias>("ExprPointAlias");
+    lookup.register_op<double, adapted_expr_point>("area", [&calls](adapted_expr_point input) {
+        ++calls;
+        return input.x * input.y;
+    });
+    cel::parser parser(std::move(lookup));
+    CHECK(evaluate(parser, "ExprPoint { y: 4.0, x: 3.0 }.area()").as<double>() == 12.0);
+    CHECK(calls == 1);
+    for (auto text : {"ExprPoint{x:3.0}", "ExprPoint{z:3.0,y:4.0}", "ExprPoint{x:true,y:4.0}"}) {
+        CAPTURE(text);
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
+    const auto before = calls;
+    CHECK_THROWS_AS(parser.parse_str("ExprPointAlias { y: 4.0, x: 3.0 }.area()"), cel::parse_error);
+    CHECK(calls == before);
 }
 
 TEST_CASE(

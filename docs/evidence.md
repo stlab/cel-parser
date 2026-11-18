@@ -11,16 +11,13 @@ P4 fixes malformed selector conversion spans at
 pinned to the original baseline.
 The runtime source upstream is
 [stlab/cel-runtime](https://github.com/stlab/cel-runtime).
-CPM pins runtime release `v1.0.1` at revision
-`a8e753b040664172fd3f526f9cf46029858ff788`.
-This prerequisite includes shared native descriptors, cached operand origins,
-result-first operation helpers, stack-independent
-executable retirement and complete higher-order result ownership checks; the
-earlier P4 runtime revision is insufficient. The parser consumes the public
-target from a pinned CPM source dependency; it neither copies runtime
-implementation nor includes private headers.
-Rebuild the parser and all clients together when upgrading: runtime v1.0.1
-changes the private type-descriptor layout.
+The previous P4 baseline used release `v1.0.1` at revision
+`a8e753b040664172fd3f526f9cf46029858ff788`. The parser pins release `v1.1.1`
+at revision `e47232f8ed6cb83bc11f4cb418a8a2249c2415cf` because its
+record-registration API uses the runtime's record adapters. The parser consumes
+the public target from CPM and exports the matching minimum package version; it
+neither copies runtime implementation nor includes private headers. Rebuild the
+parser and all clients together when upgrading the runtime.
 
 The delivered Rust evidence establishes these contracts:
 
@@ -91,11 +88,11 @@ All numeric traversal is linear and uses no locale-dependent conversion.
 ## Dependencies and licenses
 
 Production code depends on the C++20 standard library, committed Unicode
-property data, and the installed `cel-runtime` package through `cel::runtime`.
+property data, and the `cel-runtime` package through `cel::runtime`.
 There is no Unicode shared-library dependency.
 
-Build infrastructure uses `stlab/cpp-library` release `v6.0.1` at
-`13be83b3d92aeb1969fb6f8d13e81b372bb57d43` under BSL-1.0. Its pinned scaffold
+Build infrastructure uses `stlab/cpp-library` release `v6.0.2` at
+`df18f94c816df6dc4fbab8078e6b57a7d265a2c2` under BSL-1.0. Its pinned scaffold
 provides CMake presets, doctest 2.5.3 (MIT), generated negative-compilation tests,
 CTest, exports, installation, CI, and strict Doxygen configuration.
 Doxygen-awesome-css 2.5.0 (MIT) supplies the documentation theme. CPM.cmake
@@ -148,4 +145,4 @@ non-clonability. The differential tooling never rewrites source or exempts C++
 acceptance. Named diagnostic differences and selected callback-error
 normalization apply only to responses, not expressions. See
 [validation](validation.md) for configuration, diagnostic rulings,
-installed clients, and warmed timing boundaries.
+source consumers, and warmed timing boundaries.

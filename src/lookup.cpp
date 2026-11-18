@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "lexer.hpp"
 #include "lookup_access.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <unordered_set>
 
 namespace cel {
 using parser_detail::lookup_selector;
@@ -35,6 +37,51 @@ bool reserved_type(std::string_view name) {
                                "RangeToInclusive",
                                "RangeFull"};
     return std::ranges::find(names, name) != names.end();
+}
+
+/// Checks whether the complete spelling is a CEL identifier.
+/// Complexity: O(name bytes) time and auxiliary space.
+bool source_identifier(std::string_view name) {
+    parser_detail::lex_lexer lexer(name);
+    const auto* identifier = std::get_if<parser_detail::identifier>(&lexer.current().value);
+    return identifier && identifier->spelling == name;
+}
+
+/// Rejects field names that cannot be written in CEL throughout a descriptor.
+/// Complexity: expected O(V + E + S) time and O(V + E + L) auxiliary space, where V
+/// and E are visited descriptor references and edges, S is field-name bytes, and L
+/// is the longest field name.
+void validate_record_fields(const value_type& type) {
+    std::vector<const value_type*> pending{&type};
+    std::unordered_set<const value_type*> visited;
+    while (!pending.empty()) {
+        const auto* current = pending.back();
+        pending.pop_back();
+        if (!visited.insert(current).second) continue;
+        switch (current->kind()) {
+            case type_kind::leaf:
+                break;
+            case type_kind::array:
+            case type_kind::range:
+                pending.push_back(&current->element());
+                break;
+            case type_kind::record:
+                for (const auto& name : current->field_names())
+                    if (!source_identifier(name))
+                        throw std::invalid_argument("record field is not a CEL identifier: " +
+                                                    name);
+                [[fallthrough]];
+            case type_kind::tuple:
+                for (const auto& field : current->fields())
+                    pending.push_back(&field);
+                break;
+            case type_kind::callable:
+                for (const auto& parameter : current->parameters())
+                    pending.push_back(&parameter);
+                pending.push_back(&current->result());
+                break;
+        }
+    }
 }
 } // namespace
 
@@ -98,6 +145,14 @@ void op_lookup::insert_type(std::string_view name, value_type type) {
     types_.emplace(std::string(name), std::move(type));
 }
 
+void op_lookup::insert_record_type(std::string_view name, value_type type) {
+    if (!source_identifier(name) || name == "if" || name == "else" || name == "as")
+        throw std::invalid_argument("record source name is not a CEL constructor identifier: " +
+                                    std::string(name));
+    validate_record_fields(type);
+    insert_type(name, std::move(type));
+}
+
 op_lookup::op_lookup() {
     types_.emplace("bool", value_type::leaf<bool>());
     types_.emplace("f64", value_type::leaf<double>());
@@ -111,7 +166,7 @@ op_lookup::op_lookup() {
 }
 
 void op_lookup::register_record(std::string_view name, std::span<const record_field> fields) {
-    insert_type(name, value_type::record(name, fields));
+    insert_record_type(name, value_type::record(name, fields));
 }
 
 std::optional<value_type> op_lookup::find_type(std::string_view name) const {

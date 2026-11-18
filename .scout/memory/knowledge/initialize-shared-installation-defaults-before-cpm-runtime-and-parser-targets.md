@@ -1,19 +1,28 @@
 ---
 title: "Initialize shared installation defaults before CPM runtime and parser targets"
 entity_type: decision
-confidence: 0.99
+confidence: 0.10
 created: 2026-11-10T22:04:27Z
-last_accessed: 2026-11-10T22:04:27Z
-last_reinforced: 2026-11-10T22:04:27Z
-access_count: 1
+last_accessed: 2026-11-18T05:05:33Z
+last_reinforced: 2026-11-18T04:09:44Z
+access_count: 4
 sources:
   - "CMakeLists.txt:20-29"
   - "CMakeLists.txt:30-49"
   - "tests/installed_consumer.cmake.in:3-6"
+  - "CMakeLists.txt:22-25"
+  - "CMakeLists.txt:28-47"
+  - "tests/installed_consumer.cmake.in:3-7"
+  - "tests/installed_consumer.cmake.in:30-45"
+  - "tests/installed_consumer.cmake.in:54-78"
 tags: ["cmake", "cpm", "dependencies", "installation"]
 tier: knowledge
+votes_up: 1
+votes_down: 2
+last_voted: 2026-11-18T06:46:42Z
+superseded_by: "[[Keep cel-runtime out of parser installation]]"
 ---
 
 # Initialize shared installation defaults before CPM runtime and parser targets
 
-cel-parser acquires cel-runtime as a pinned CPM source dependency before cpp_library_setup. Initialize CEL_INSTALL from PROJECT_IS_TOP_LEVEL before adding the dependency: both libraries use the cel namespace and therefore share cpp-library's installation option. Keep dependency acquisition before parser target setup; the runtime's directory-local docs post-build hook must not see the parser's docs target. Scope BUILD_TESTING OFF through CPM OPTIONS so runtime development targets do not collide with parser tests, without disabling the parser's own tests. The installed-consumer test installs both libraries recursively from this build tree; it must not infer an installed runtime prefix from source-target include directories.
+Initialize CEL_INSTALL before acquiring cel-runtime: both libraries share this option. Acquire the runtime before setting up the parser so the runtime documentation hook does not capture the parser docs target. CPM URI shorthand excludes the dependency from the default build and recursive installation unless EXCLUDE_FROM_ALL is explicitly set to NO. Preserve that override so installed consumers receive cel-runtime. Export the minimum compatible runtime version; the installed-consumer test checks both packages resolve from the installation and rejects an older runtime.

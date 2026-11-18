@@ -6,10 +6,11 @@ fixture exemptions are superseded by the [core census](builtin-census.md),
 [expression grammar](expression-grammar.md), and
 [exact-source validation](validation.md).
 
-P4 adds public differential tooling, a cached decoded-expression client,
-installed clients, separate execution measurements, and explicit provisioned
-CI inputs. It does not publish packages or establish overall port completion.
-Automated validation does not replace independent code review.
+P4 added public differential tooling, a cached decoded-expression client,
+separate execution measurements, and explicit provisioned CI inputs. Its
+installed-consumer test has since been removed; current validation does not
+exercise package installation. P4 did not publish packages or establish overall
+port completion. Automated validation does not replace independent code review.
 
 ## Feature closure
 
@@ -37,7 +38,7 @@ below add comparisons without claiming exhaustive enumeration of infinite types.
 | Bracket indexing and finite integral bounds | Explicit C++ adaptation | `cpp-adaptations`; `explicit C++ array indexing validates before structural access`; runtime index/prefix cases | High; Rust has no bracket-postfix syntax |
 | Removed integers/f32/strings, bitwise/casts/helpers, wrong nominal types | Excluded with public rejection tests | Census removed rows; lexer/type/lookup/expression tests; `type-lookup-errors` | High; no invented conversions/names |
 | Ownership binding, resource overflow, callable exclusion/reentry | Equivalent public runtime contract paths | Runtime parity ledger and callable/composite/resource tests; typed empty Fn fixtures | High; not relabeled as differential raw-storage tests |
-| Installed headers/artifacts and decoded cache/composites/callables | Package-only clients | `installed_consumer` and its five nested clients | High locally; no remote package publication |
+| Installed client compatibility | Not exercised | None | Installation is outside current validation |
 | Timing boundaries | Warmed Release execution | `measurement` CSV and `measurement_contracts` | Local only; not portable speed or leak claims |
 | Required CI inputs and fail-closed local parity | Configuration plus negative checks | `provisioned-validation.yml`, CMake parity requirements, harness tests | Local only; runner/hosting and remote execution pending |
 
@@ -50,9 +51,11 @@ away. See [validation](validation.md) for exact adapters and driver contracts.
 
 The final integrated wave corrects executable retirement and higher-order result
 ownership. Use the corrected runtime revision in [source evidence](evidence.md)
-and the build/install commands in the [README](../README.md). Validation must
-consume normal and instrumented installations of that same runtime revision;
-see [validation](validation.md) for the matching sanitizer configuration.
+and the build and test commands in the [README](../README.md). Current
+validation uses source-built parser and runtime targets; it does not verify
+installed parser clients. The generated `cpp-library` package check verifies
+the parser component only; runtime discovery is expected to fail when the
+runtime isn't installed.
 The shipped runtime tests `executable_retirement_test.cpp` and
 `callable_test.cpp` cover these ownership regressions.
 Ordinary named scalar calls allocate
@@ -60,21 +63,22 @@ owning marker/result intermediates; direct scalar dispatch measurements remain
 separate. Native owning composites and dynamic invocation retain their costs.
 
 The [validation guide](validation.md) supplies reproducible commands, reference
-inputs, installed-prefix checks, and measurement boundaries.
+inputs, source-consumer checks, and measurement boundaries.
 Actual GCC, MSVC, macOS LSan, remote CI, hosting, and independent reviews are
 not established by AppleClang/local evidence. Repeat the validation commands
 when changing a contract or reference revision.
 
 ## Local P4 evidence
 
-AppleClang 21 on arm64 macOS passes all 18 parser CTests in Debug, Release,
-matching ASan+UBSan, and clang-tidy configurations. Each run includes six
-negative-compilation gates, actual differential execution, and installed
-consumption. The differential run passes 275 shared fixtures and 14 explicit
-C++ adaptations across 19 fixture families. A separate real combined
-installation passes all five consumer tests. The Rust driver passes three
-tests, formatting, and all-target clippy with warnings denied. Both strict
-Doxygen targets pass with `WARN_AS_ERROR=YES`.
+AppleClang 21 on arm64 macOS passed all 18 parser CTests in Debug, Release,
+matching ASan+UBSan, and clang-tidy configurations at the time of this
+historical snapshot. Those runs included six negative-compilation gates,
+actual differential execution, and installed-consumer tests, which are no
+longer part of current validation. The differential run passed 275 shared
+fixtures and 14 explicit C++ adaptations across 19 fixture families. A separate
+combined installation passed all five consumer tests in that snapshot. The
+Rust driver passed three tests, formatting, and all-target clippy with warnings
+denied. Both strict Doxygen targets passed with `WARN_AS_ERROR=YES`.
 
 The historical snapshot used allocation instrumentation that has been removed.
 The maintained measurement tool reports timing only.

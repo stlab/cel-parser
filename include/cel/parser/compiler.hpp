@@ -50,7 +50,8 @@ public:
     /// Compiles one complete decoded UTF-8 CEL source through an owned source copy.
     /// Selects grammar alternatives from the current token alone. Consuming a comma requires
     /// another item except for a required singleton-tuple comma; optional trailing commas fail.
-    /// Numeric values require floating forms such as 1.0 or 1e0; integer forms are unsupported.
+    /// Numeric values require floating forms such as 1.0 or 1e0; decimal integer-form floats
+    /// require an `f64` suffix such as 1f64. Bare and radix-prefixed integers are unsupported.
     /// Postfix array indexing is not part of the core grammar.
     /// Returns an owned program under this class's ownership and failure contracts.
     /// Throws source-located parse_error for malformed_input, unsupported_literal, type_error,
