@@ -27,7 +27,6 @@ CPMAddPackage("gh:stlab/cel-runtime@1.1.0")
 cpp_library_setup(
     DESCRIPTION "UTF-8 CEL expression compilation and checked library extensions"
     NAMESPACE cel
-    REQUIRES_CPP_VERSION 20
     HEADERS parser.hpp parser/diagnostic.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
@@ -39,9 +38,8 @@ cpp_library_setup(
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
         "EXCLUDE_SYMBOLS = cel::detail cel::detail::* cel::parser_detail cel::parser_detail::*"
         "FULL_PATH_NAMES = NO"
-        "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"
-        "STRIP_FROM_INC_PATH = ${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
+cpp_library_map_dependency("cel::runtime" "cel-runtime 1.1.0 CONFIG")
 target_link_libraries(parser PUBLIC cel::runtime)
 if(TARGET parity_driver_test)
     target_sources(parity_driver_test PRIVATE tools/parity/driver.cpp)
