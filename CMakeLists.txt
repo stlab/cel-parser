@@ -42,7 +42,6 @@ cpp_library_setup(
         "STRIP_FROM_PATH = ${CMAKE_CURRENT_SOURCE_DIR}"
         "STRIP_FROM_INC_PATH = ${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-cpp_library_map_dependency("cel::runtime" "cel-runtime 1.1.0 CONFIG")
 target_link_libraries(parser PUBLIC cel::runtime)
 if(TARGET parity_driver_test)
     target_sources(parity_driver_test PRIVATE tools/parity/driver.cpp)
