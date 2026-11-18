@@ -24,4 +24,4 @@ relationships:
 
 # Pin runtime source with a versioned CPM URI
 
-Pin `cel-runtime` with a CPM URI that includes both the compatibility release (`1.1.0`) and the reviewed full commit SHA. Keep the release tag-to-commit relationship in `docs/evidence.md`. `cpp-library` 6.0.2 resolves the dependency from CPM's registry, so do not add a separate `cpp_library_map_dependency` for this CPM package.
+Pin `cel-runtime` with a CPM URI that includes both the compatibility release (`1.1.1`) and reviewed full commit SHA `e47232f8ed6cb83bc11f4cb418a8a2249c2415cf`. Keep the release tag-to-commit relationship in `docs/evidence.md`. `cpp-library` 6.0.2 resolves the dependency from CPM's registry, so do not add a separate `cpp_library_map_dependency` for this CPM package.

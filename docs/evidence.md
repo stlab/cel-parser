@@ -12,8 +12,8 @@ pinned to the original baseline.
 The runtime source upstream is
 [stlab/cel-runtime](https://github.com/stlab/cel-runtime).
 The previous P4 baseline used release `v1.0.1` at revision
-`a8e753b040664172fd3f526f9cf46029858ff788`. The parser now pins release
-`v1.1.0` at revision `2dd73e9c26c6d02c79bfb26f82521c62a1bfd079` because its
+`a8e753b040664172fd3f526f9cf46029858ff788`. The parser pins release `v1.1.1`
+at revision `e47232f8ed6cb83bc11f4cb418a8a2249c2415cf` because its
 record-registration API uses the runtime's record adapters. The parser consumes
 the public target from CPM and exports the matching minimum package version; it
 neither copies runtime implementation nor includes private headers. Rebuild the

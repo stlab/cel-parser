@@ -21,7 +21,7 @@ endif()
 
 # Both cel packages share CEL_INSTALL; choose its default before adding dependencies.
 option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVEL})
-CPMAddPackage("gh:stlab/cel-runtime@1.1.0#2dd73e9c26c6d02c79bfb26f82521c62a1bfd079")
+CPMAddPackage("gh:stlab/cel-runtime@1.1.1#e47232f8ed6cb83bc11f4cb418a8a2249c2415cf")
 
 # Setup library
 cpp_library_setup(
