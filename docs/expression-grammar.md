@@ -100,8 +100,8 @@ The following cases in `tests/expression_test.cpp` cover the implementation:
 | `recursive input` | Bounded nesting, long arithmetic/unary/cast/member/lazy/list chains |
 
 `tests/type_test.cpp` additionally verifies exact span-output prefix parsing.
-The `installed_consumer` test builds the public compiler and runtime APIs
-against the installed packages.
+The `source_consumer` test builds the public compiler and runtime APIs from a
+source-tree consumer.
 
 The differential fixtures cover retained production families with identical
 sources. Narrower scalar/parameter availability, canonical record carriers,

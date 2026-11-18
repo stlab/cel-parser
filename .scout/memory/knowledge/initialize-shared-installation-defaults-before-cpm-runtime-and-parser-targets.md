@@ -1,11 +1,11 @@
 ---
 title: "Initialize shared installation defaults before CPM runtime and parser targets"
 entity_type: decision
-confidence: 0.95
+confidence: 0.10
 created: 2026-11-10T22:04:27Z
-last_accessed: 2026-11-18T04:09:44Z
+last_accessed: 2026-11-18T05:05:33Z
 last_reinforced: 2026-11-18T04:09:44Z
-access_count: 3
+access_count: 4
 sources:
   - "CMakeLists.txt:20-29"
   - "CMakeLists.txt:30-49"
@@ -17,6 +17,10 @@ sources:
   - "tests/installed_consumer.cmake.in:54-78"
 tags: ["cmake", "cpm", "dependencies", "installation"]
 tier: knowledge
+votes_up: 1
+votes_down: 1
+last_voted: 2026-11-18T06:30:35Z
+superseded_by: "[[Keep cel-runtime out of parser installation]]"
 ---
 
 # Initialize shared installation defaults before CPM runtime and parser targets

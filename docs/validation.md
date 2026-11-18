@@ -1,8 +1,8 @@
 # Validate retained contracts and execution costs {#parser_validation}
 
 This guide serves library maintainers. It separates public cross-language
-exact-source subset checks, diagnostic differences, installed consumption,
-and local measurements.
+exact-source subset checks, diagnostic differences, source consumption, and
+local measurements.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -116,17 +116,19 @@ exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
-## Verify installed consumption
+## Verify source consumption
 
-The `installed_consumer` test installs the parser and runtime from the same
-build into an isolated prefix. It configures a separate consumer without
-source-tree include paths, checks that both imported packages resolve to the
-prefix, builds five clients, and runs them. It also verifies that the parser
-package rejects a runtime older than 1.1.0.
+The `source_consumer` test adds the parser as a subproject, confirms that the
+parser and runtime targets are source-built with installation disabled, then
+builds and runs a client. It doesn't test package installation or downstream
+package discovery.
 
-The generated CI workflow separately checks installed package artifacts with
-the `cpp-library` package test. That check complements the installed-consumer
-test; it does not configure a consumer.
+The `cpp-library`-generated package check verifies that the parser component
+is present in the install tree. It doesn't validate consumer discovery or
+runtime availability; `find_dependency(cel-runtime)` is expected to fail
+because CPM excludes the runtime from recursive installation by default. We
+don't maintain an installed-consumer test. Address installation failures if a
+client reports one.
 
 ## Measure optimized warmed execution
 

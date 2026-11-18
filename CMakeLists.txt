@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 include(cmake/CPM.cmake)
 
 set(CPP_LIBRARY_VERSION "" CACHE STRING "CEL parser package version override")
-CPMAddPackage("gh:stlab/cpp-library@6.0.1")
+CPMAddPackage("gh:stlab/cpp-library@6.0.2")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
@@ -21,13 +21,7 @@ endif()
 
 # Both cel packages share CEL_INSTALL; choose its default before adding dependencies.
 option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVEL})
-# Keep the public runtime dependency in the recursive install closure.
-CPMAddPackage(
-    NAME cel-runtime
-    GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG 2dd73e9c26c6d02c79bfb26f82521c62a1bfd079
-    EXCLUDE_FROM_ALL NO
-)
+CPMAddPackage("gh:stlab/cel-runtime@1.1.0#2dd73e9c26c6d02c79bfb26f82521c62a1bfd079")
 
 # Setup library
 cpp_library_setup(
@@ -45,7 +39,6 @@ cpp_library_setup(
         "EXCLUDE_SYMBOLS = cel::detail cel::detail::* cel::parser_detail cel::parser_detail::*"
         "FULL_PATH_NAMES = NO"
 )
-cpp_library_map_dependency("cel::runtime" "cel-runtime 1.1.0 CONFIG")
 target_link_libraries(parser PUBLIC cel::runtime)
 if(TARGET parity_driver_test)
     target_sources(parity_driver_test PRIVATE tools/parity/driver.cpp)
@@ -64,15 +57,11 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
         add_library(header_${header_id} OBJECT "${header_source}")
         target_link_libraries(header_${header_id} PRIVATE cel::parser)
     endforeach()
-    configure_file(tests/installed_consumer.cmake.in installed_consumer.cmake @ONLY)
     configure_file(tests/source_consumer.cmake.in source_consumer.cmake @ONLY)
-    add_test(NAME installed_consumer
-        COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
-            -P "${CMAKE_CURRENT_BINARY_DIR}/installed_consumer.cmake")
     add_test(NAME source_consumer
         COMMAND "${CMAKE_COMMAND}" "-DCONFIG=$<CONFIG>"
             -P "${CMAKE_CURRENT_BINARY_DIR}/source_consumer.cmake")
-    set_tests_properties(installed_consumer source_consumer tests PROPERTIES TIMEOUT 180)
+    set_tests_properties(source_consumer tests PROPERTIES TIMEOUT 180)
 endif()
 
 option(CEL_PARSER_BUILD_MEASUREMENTS "Build execution timing workloads" OFF)

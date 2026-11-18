@@ -88,11 +88,11 @@ All numeric traversal is linear and uses no locale-dependent conversion.
 ## Dependencies and licenses
 
 Production code depends on the C++20 standard library, committed Unicode
-property data, and the installed `cel-runtime` package through `cel::runtime`.
+property data, and the `cel-runtime` package through `cel::runtime`.
 There is no Unicode shared-library dependency.
 
-Build infrastructure uses `stlab/cpp-library` release `v6.0.1` at
-`13be83b3d92aeb1969fb6f8d13e81b372bb57d43` under BSL-1.0. Its pinned scaffold
+Build infrastructure uses `stlab/cpp-library` release `v6.0.2` at
+`df18f94c816df6dc4fbab8078e6b57a7d265a2c2` under BSL-1.0. Its pinned scaffold
 provides CMake presets, doctest 2.5.3 (MIT), generated negative-compilation tests,
 CTest, exports, installation, CI, and strict Doxygen configuration.
 Doxygen-awesome-css 2.5.0 (MIT) supplies the documentation theme. CPM.cmake
@@ -145,4 +145,4 @@ non-clonability. The differential tooling never rewrites source or exempts C++
 acceptance. Named diagnostic differences and selected callback-error
 normalization apply only to responses, not expressions. See
 [validation](validation.md) for configuration, diagnostic rulings,
-installed clients, and warmed timing boundaries.
+source consumers, and warmed timing boundaries.
