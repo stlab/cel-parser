@@ -25,7 +25,7 @@ option(CEL_INSTALL "Enable installation for cel libraries" ${PROJECT_IS_TOP_LEVE
 CPMAddPackage(
     NAME cel-runtime
     GITHUB_REPOSITORY stlab/cel-runtime
-    GIT_TAG v1.1.0
+    GIT_TAG 2dd73e9c26c6d02c79bfb26f82521c62a1bfd079
     EXCLUDE_FROM_ALL NO
 )
 
