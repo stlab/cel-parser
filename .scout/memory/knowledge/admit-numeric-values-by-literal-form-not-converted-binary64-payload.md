@@ -17,7 +17,7 @@ sources:
 tags: ["parser", "literals", "rust-parity", "tuple-selectors"]
 tier: knowledge
 votes_up: 1
-votes_down: 0
+votes_down: 1
 last_voted: 2026-11-18T06:48:54Z
 ---
 
