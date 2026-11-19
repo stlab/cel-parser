@@ -14,6 +14,9 @@ relationships:
     target: "Keep cel-runtime out of parser installation"
 tags: ["cmake", "cpp-library", "testing", "licenses"]
 tier: knowledge
+votes_up: 1
+votes_down: 0
+last_voted: 2026-11-19T22:08:49Z
 ---
 
 # Delegate public-header checks and license installation to cpp-library

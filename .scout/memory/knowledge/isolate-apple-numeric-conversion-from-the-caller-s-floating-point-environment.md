@@ -13,6 +13,9 @@ sources:
   - "docs/lexical-contract.md:105-109"
 tags: ["parser", "floating-point", "macos", "locale", "compatibility"]
 tier: knowledge
+votes_up: 1
+votes_down: 0
+last_voted: 2026-11-19T22:08:46Z
 ---
 
 # Isolate Apple numeric conversion from the caller's floating-point environment
