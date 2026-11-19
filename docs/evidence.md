@@ -76,11 +76,13 @@ A local `rustc` stdin probe of `str::parse::<f64>()` confirmed these outcomes:
 | `9007199254740993` | `9007199254740992.0` |
 | `1e999999999999999999999` | Positive infinity |
 
-The C++ implementation uses `std::from_chars`; it doesn't implement decimal
-floating-point conversion. Because the standard converter leaves the output
-unchanged on range failure, the adapter classifies a decimal's order as positive
-or nonpositive and supplies infinity or zero only after a range error. Conversion
-of representable values remains the standard converter's responsibility.
+The C++ implementation delegates floating-point conversion to the platform
+library: C-locale `strtod_l` on Apple platforms and `std::from_chars` elsewhere.
+The Apple path uses the converter's infinity, zero, and subnormal results.
+Because `std::from_chars` leaves the output unchanged on range failure, its
+adapter classifies a decimal's order as positive or nonpositive and supplies
+infinity or zero only after a range error. Conversion of representable values
+remains the library converter's responsibility.
 Power-of-two radix digits are regrouped exactly into hexadecimal digits before
 the same converter runs; no intermediate fixed-width integer narrows the value.
 All numeric traversal is linear and uses no locale-dependent conversion.

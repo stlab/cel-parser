@@ -11,6 +11,12 @@
 #include <utility>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <memory>
+#include <type_traits>
+#include <xlocale.h>
+#endif
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -117,6 +123,30 @@ TEST_CASE("binary64 boundary conversion preserves Rust infinity and zero results
     CHECK(std::isinf(std::get<cel::parser_detail::numeric_literal>(extremes[0].value).value));
     CHECK(std::get<cel::parser_detail::numeric_literal>(extremes[1].value).value == 0);
 }
+
+#if defined(__APPLE__)
+TEST_CASE("numeric conversion ignores the calling thread's numeric locale") {
+    using locale_type = std::remove_pointer_t<locale_t>;
+    std::unique_ptr<locale_type, decltype(&freelocale)> locale(
+        newlocale(LC_NUMERIC_MASK, "de_DE.UTF-8", nullptr), freelocale);
+    REQUIRE(locale != nullptr);
+    const auto previous = uselocale(locale.get());
+    REQUIRE(previous != nullptr);
+    const auto restore = [previous](locale_t current) {
+        uselocale(previous);
+        freelocale(current);
+    };
+    std::unique_ptr<locale_type, decltype(restore)> active(locale.release(), restore);
+
+    const auto tokens = collect("1.25 1_5e-1 0o17 0x20000000000001");
+    REQUIRE(tokens.size() == 5);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[0].value).value == 1.25);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[1].value).value == 1.5);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[2].value).value == 15);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[3].value).value ==
+          9007199254740992.0);
+}
+#endif
 
 TEST_CASE("radix integers round ties without narrowing and retain exact spelling") {
     constexpr std::array<std::pair<std::string_view, double>, 10> cases{{
