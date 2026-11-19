@@ -25,4 +25,4 @@ last_voted: 2026-11-18T06:46:33Z
 
 # Keep cel-runtime out of parser installation
 
-Set `CEL_INSTALL` before adding `cel-runtime` so both projects see the intended option. Add the runtime with its versioned commit URI and keep CPM's short-form `EXCLUDE_FROM_ALL` default; do not override it to `NO`. With `cpp-library` 6.0.2, CPM registry resolution supplies the package/version without an explicit `cpp_library_map_dependency`. The source-consumer test remains; installed-consumer testing is intentionally omitted, and the generated package check verifies component presence only.
+Let `cpp_library_setup` initialize the default `CEL_INSTALL` option before adding `cel-runtime`. Add the runtime with its versioned commit URI and keep CPM's short-form `EXCLUDE_FROM_ALL` default; do not override it to `NO`. With `cpp-library` 6.0.2, CPM registry resolution supplies the package/version without an explicit `cpp_library_map_dependency`. Package validation relies on cpp-library's generated component-presence check, without custom source-consumer or installed-consumer tests.

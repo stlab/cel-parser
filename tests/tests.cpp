@@ -179,20 +179,23 @@ TEST_CASE("comment markers at EOF remain bounded") {
 }
 
 TEST_CASE("Unicode identifiers and producer whitespace retain byte boundaries") {
-    auto t = collect("α\u0301 \u00a0\u200e\u200f日本 \U0003d000");
+    auto t = collect("\xce\xb1\xcc\x81 "
+                     "\xc2\xa0\xe2\x80\x8e\xe2\x80\x8f\xe6\x97\xa5\xe6\x9c\xac "
+                     "\xf0\xbd\x80\x80");
     REQUIRE(t.size() == 4);
-    CHECK(std::get<cel::parser_detail::identifier>(t[0].value).spelling == "α\u0301");
+    CHECK(std::get<cel::parser_detail::identifier>(t[0].value).spelling == "\xce\xb1\xcc\x81");
     CHECK(t[0].span.begin == 0);
     CHECK(t[0].span.end == 4);
-    CHECK(std::get<cel::parser_detail::identifier>(t[1].value).spelling == "日本");
+    CHECK(std::get<cel::parser_detail::identifier>(t[1].value).spelling ==
+          "\xe6\x97\xa5\xe6\x9c\xac");
     CHECK(t[1].span.begin == 13);
     CHECK(t[1].span.end == 19);
-    CHECK(std::get<cel::parser_detail::identifier>(t[2].value).spelling == "\U0003d000");
+    CHECK(std::get<cel::parser_detail::identifier>(t[2].value).spelling == "\xf0\xbd\x80\x80");
 }
 
 TEST_CASE("diagnostics identify unsupported versus malformed input") {
-    for (auto text : {"1f32", "1u8", "1.0i32", "1名字", "\"text\"", "'x'", "b\"x\"", "r#\"x\"#",
-                      "br##\"x\"##", "c\"x\""}) {
+    for (auto text : {"1f32", "1u8", "1.0i32", "1\xe5\x90\x8d\xe5\xad\x97", "\"text\"", "'x'",
+                      "b\"x\"", "r#\"x\"#", "br##\"x\"##", "c\"x\""}) {
         INFO(text);
         auto t = collect(text);
         REQUIRE(t.size() == 2);
@@ -209,8 +212,8 @@ TEST_CASE("diagnostics identify unsupported versus malformed input") {
     auto const& error = std::get<cel::parse_error>(incomplete[0].value);
     CHECK(error.category() == cel::error_category::unsupported_literal);
     CHECK(error.span().end == 2);
-    for (auto text :
-         {"0x", "0b2", "\"unfinished", "/*unfinished", "///bare\rCR", "\u0301", "😀", "r#self"}) {
+    for (auto text : {"0x", "0b2", "\"unfinished", "/*unfinished", "///bare\rCR", "\xcc\x81",
+                      "\xf0\x9f\x98\x80", "r#self"}) {
         INFO(text);
         auto t = collect(text);
         REQUIRE(std::holds_alternative<cel::parse_error>(t[t.size() - 2].value));
@@ -329,7 +332,7 @@ TEST_CASE("inline punctuation validates caller input and owns its bytes") {
     cel::parser_detail::punctuation punct(source);
     source.assign(3, 'x');
     CHECK(punct.spelling() == "..=");
-    for (auto invalid : {"", "....", "abc", "α"}) {
+    for (auto invalid : {"", "....", "abc", "\xce\xb1"}) {
         CHECK_THROWS_AS(cel::parser_detail::punctuation{invalid}, std::invalid_argument);
     }
 }

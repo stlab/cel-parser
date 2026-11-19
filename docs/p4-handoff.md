@@ -39,7 +39,6 @@ below add comparisons without claiming exhaustive enumeration of infinite types.
 | Removed integers/f32/strings, bitwise/casts/helpers, wrong nominal types | Excluded with public rejection tests | Census removed rows; lexer/type/lookup/expression tests; `type-lookup-errors` | High; no invented conversions/names |
 | Ownership binding, resource overflow, callable exclusion/reentry | Equivalent public runtime contract paths | Runtime parity ledger and callable/composite/resource tests; typed empty Fn fixtures | High; not relabeled as differential raw-storage tests |
 | Installed client compatibility | Not exercised | None | Installation is outside current validation |
-| Timing boundaries | Warmed Release execution | `measurement` CSV and `measurement_contracts` | Local only; not portable speed or leak claims |
 | Required CI inputs and fail-closed local parity | Configuration plus negative checks | `provisioned-validation.yml`, CMake parity requirements, harness tests | Local only; runner/hosting and remote execution pending |
 
 ## Corrections and remaining boundaries
@@ -58,12 +57,11 @@ the parser component only; runtime discovery is expected to fail when the
 runtime isn't installed.
 The shipped runtime tests `executable_retirement_test.cpp` and
 `callable_test.cpp` cover these ownership regressions.
-Ordinary named scalar calls allocate
-owning marker/result intermediates; direct scalar dispatch measurements remain
-separate. Native owning composites and dynamic invocation retain their costs.
+Ordinary named scalar calls allocate owning marker/result intermediates.
+Native owning composites and dynamic invocation retain their costs.
 
-The [validation guide](validation.md) supplies reproducible commands, reference
-inputs, source-consumer checks, and measurement boundaries.
+The [validation guide](validation.md) supplies reproducible commands and reference
+inputs.
 Actual GCC, MSVC, macOS LSan, remote CI, hosting, and independent reviews are
 not established by AppleClang/local evidence. Repeat the validation commands
 when changing a contract or reference revision.
@@ -80,8 +78,8 @@ combined installation passed all five consumer tests in that snapshot. The
 Rust driver passed three tests, formatting, and all-target clippy with warnings
 denied. Both strict Doxygen targets passed with `WARN_AS_ERROR=YES`.
 
-The historical snapshot used allocation instrumentation that has been removed.
-The maintained measurement tool reports timing only.
+The historical snapshot used allocation instrumentation and a timing executable
+that are not part of the maintained build.
 
 Release uses `-O3 -DNDEBUG`, C++20, and no fast-math. One representative warmed
 snapshot records these separate passes; it is not a statistical benchmark:

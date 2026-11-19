@@ -144,5 +144,4 @@ boundaries, compound separation, producer cursor termination, and static
 non-clonability. The differential tooling never rewrites source or exempts C++
 acceptance. Named diagnostic differences and selected callback-error
 normalization apply only to responses, not expressions. See
-[validation](validation.md) for configuration, diagnostic rulings,
-source consumers, and warmed timing boundaries.
+[validation](validation.md) for configuration and diagnostic rulings.
