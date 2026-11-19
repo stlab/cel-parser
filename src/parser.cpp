@@ -12,6 +12,7 @@
 #include <utility>
 
 #if defined(__APPLE__)
+#include <cfenv>
 #include <cstdlib>
 #include <xlocale.h>
 #else
@@ -179,8 +180,16 @@ double convert(std::string_view spelling, unsigned base) {
     }
 #if defined(__APPLE__)
     if (base != 10) normalized.insert(0, "0x");
+    // Keep this save/restore region free of throwing C++ operations.
+    std::fenv_t environment;
+    if (std::feholdexcept(&environment) != 0)
+        throw std::runtime_error("cannot save floating-point environment");
+    const auto rounding_status = std::fesetround(FE_TONEAREST);
     char* end = nullptr;
     const auto value = strtod_l(normalized.c_str(), &end, LC_C_LOCALE);
+    const auto restore_status = std::fesetenv(&environment);
+    if (rounding_status != 0 || restore_status != 0)
+        throw std::runtime_error("cannot set or restore floating-point environment");
     if (end != normalized.c_str() + normalized.size())
         throw std::logic_error("validated CEL number rejected by strtod_l");
 #else

@@ -12,6 +12,7 @@
 #include <vector>
 
 #if defined(__APPLE__)
+#include <cfenv>
 #include <memory>
 #include <type_traits>
 #include <xlocale.h>
@@ -125,6 +126,32 @@ TEST_CASE("binary64 boundary conversion preserves Rust infinity and zero results
 }
 
 #if defined(__APPLE__)
+TEST_CASE("numeric conversion preserves the calling thread's floating-point environment") {
+    std::fenv_t saved;
+    REQUIRE(std::feholdexcept(&saved) == 0);
+    std::unique_ptr<std::fenv_t, decltype(&std::fesetenv)> restore(&saved, std::fesetenv);
+
+    for (const auto rounding : {FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO}) {
+        INFO(rounding);
+        REQUIRE(std::fesetround(rounding) == 0);
+        REQUIRE(std::feclearexcept(FE_ALL_EXCEPT) == 0);
+        REQUIRE(std::feraiseexcept(FE_DIVBYZERO) == 0);
+        const auto flags = std::fetestexcept(FE_ALL_EXCEPT);
+
+        const auto tokens =
+            collect("1.0000000000000001 0.99999999999999999 0x20000000000001 1e9999 1e-9999");
+        CHECK(std::fegetround() == rounding);
+        CHECK(std::fetestexcept(FE_ALL_EXCEPT) == flags);
+        REQUIRE(tokens.size() == 6);
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[0].value).value == 1.0);
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[1].value).value == 1.0);
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[2].value).value ==
+              9007199254740992.0);
+        CHECK(std::isinf(std::get<cel::parser_detail::numeric_literal>(tokens[3].value).value));
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[4].value).value == 0.0);
+    }
+}
+
 TEST_CASE("numeric conversion ignores the calling thread's numeric locale") {
     using locale_type = std::remove_pointer_t<locale_t>;
     std::unique_ptr<locale_type, decltype(&freelocale)> locale(
