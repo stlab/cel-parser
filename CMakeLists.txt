@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 include(cmake/CPM.cmake)
 
-CPMAddPackage("gh:stlab/cpp-library@6.0.2")
+CPMAddPackage("gh:stlab/cpp-library@6.1.0")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
@@ -23,6 +23,7 @@ cpp_library_setup(
     TESTS tests.cpp lookup_test.cpp type_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
         cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp standard_library_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp token_interface_fail.cpp
+    LICENSE_FILES licenses/Unicode-3.0.txt
     DOCS_INPUTS README.md docs/build.md docs/get-started.md docs/libraries.md
         docs/language.md docs/reference.dox
     DOCS_EXCLUDE_SYMBOLS cel::detail cel::detail::* cel::parser_detail cel::parser_detail::*
@@ -30,7 +31,7 @@ cpp_library_setup(
 )
 
 # Initialize cpp-library's default CEL_INSTALL before the same-namespace runtime.
-CPMAddPackage("gh:stlab/cel-runtime@1.1.1#e47232f8ed6cb83bc11f4cb418a8a2249c2415cf")
+CPMAddPackage("gh:stlab/cel-runtime@1.1.2#a819042cfa3fab8ede82052518f2b7f5175af5ad")
 target_link_libraries(parser PUBLIC cel::runtime)
 
 # Exercise parity-driver helpers in ordinary unit tests without the driver's main().
@@ -39,26 +40,12 @@ if(TARGET parity_driver_test)
     target_compile_definitions(parity_driver_test PRIVATE CEL_PARITY_NO_MAIN)
 endif()
 
-# Ship the project and Unicode-data license notices with installed packages.
-if(CEL_INSTALL)
-    install(FILES LICENSE licenses/Unicode-3.0.txt
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/cel-parser")
-endif()
-
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     # Give white-box tests access to implementation headers without exporting them.
     foreach(test tests lookup_test type_test expression_test parity_driver_test cursor_copy_fail lexer_copy_fail)
         target_include_directories(${test} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     endforeach()
 
-    # Compile each public header as the only include to check self-containment.
-    foreach(header parser.hpp parser/diagnostic.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp)
-        string(MAKE_C_IDENTIFIER "${header}" header_id)
-        set(header_source "${CMAKE_CURRENT_BINARY_DIR}/header_${header_id}.cpp")
-        file(GENERATE OUTPUT "${header_source}" CONTENT "#include <cel/${header}>\n")
-        add_library(header_${header_id} OBJECT "${header_source}")
-        target_link_libraries(header_${header_id} PRIVATE cel::parser)
-    endforeach()
     set_tests_properties(tests PROPERTIES TIMEOUT 180)
 endif()
 

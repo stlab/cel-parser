@@ -7,8 +7,7 @@ last_accessed: 2026-11-18T06:31:07Z
 last_reinforced: 2026-11-18T06:31:07Z
 access_count: 1
 sources:
-  - "CMakeLists.txt:22-24"
-  - "CMakeLists.txt:42"
+  - "CMakeLists.txt:17-35"
   - "docs/validation.md:121-130"
 supersedes: "[[Initialize shared installation defaults before CPM runtime and parser targets]]"
 tags: ["cmake", "cpm", "dependencies", "installation"]
@@ -18,11 +17,11 @@ relationships:
     target: "Pin CPM dependencies to reviewed commits"
   - type: relates_to
     target: "Initialize shared installation defaults before CPM runtime and parser targets"
-votes_up: 1
+votes_up: 2
 votes_down: 0
-last_voted: 2026-11-18T06:46:33Z
+last_voted: 2026-11-19T04:10:10Z
 ---
 
 # Keep cel-runtime out of parser installation
 
-Let `cpp_library_setup` initialize the default `CEL_INSTALL` option before adding `cel-runtime`. Add the runtime with its versioned commit URI and keep CPM's short-form `EXCLUDE_FROM_ALL` default; do not override it to `NO`. With `cpp-library` 6.0.2, CPM registry resolution supplies the package/version without an explicit `cpp_library_map_dependency`. Package validation relies on cpp-library's generated component-presence check, without custom source-consumer or installed-consumer tests.
+Let `cpp_library_setup` initialize the default `CEL_INSTALL` option before adding `cel-runtime`. Add the runtime with its versioned commit URI and keep CPM's short-form `EXCLUDE_FROM_ALL` default; do not override it to `NO`. CPM registry resolution supplies the package/version without an explicit `cpp_library_map_dependency`. Package validation relies on cpp-library's generated component-presence check, without custom source-consumer or installed-consumer tests.
