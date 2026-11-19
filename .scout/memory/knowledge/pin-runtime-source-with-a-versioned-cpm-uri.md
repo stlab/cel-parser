@@ -7,9 +7,9 @@ last_accessed: 2026-11-18T06:31:11Z
 last_reinforced: 2026-11-18T06:31:11Z
 access_count: 1
 sources:
-  - "CMakeLists.txt:6"
-  - "CMakeLists.txt:24"
-  - "docs/evidence.md:94-95"
+  - "CMakeLists.txt:5-6"
+  - "CMakeLists.txt:33-35"
+  - "docs/evidence.md:96-100"
 supersedes: "[[Pin CPM dependencies to reviewed commits]]"
 tags: ["cmake", "cpm", "dependencies", "supply-chain"]
 tier: knowledge
@@ -20,11 +20,11 @@ relationships:
     target: "Keep cel-runtime out of parser installation"
   - type: relates_to
     target: "Initialize shared installation defaults before CPM runtime and parser targets"
-votes_up: 1
+votes_up: 2
 votes_down: 0
-last_voted: 2026-11-18T06:46:38Z
+last_voted: 2026-11-19T04:10:12Z
 ---
 
 # Pin runtime source with a versioned CPM URI
 
-Pin `cel-runtime` with a CPM URI that includes both the compatibility release (`1.1.1`) and reviewed full commit SHA `e47232f8ed6cb83bc11f4cb418a8a2249c2415cf`. Keep the release tag-to-commit relationship in `docs/evidence.md`. `cpp-library` 6.0.2 resolves the dependency from CPM's registry, so do not add a separate `cpp_library_map_dependency` for this CPM package.
+Pin `cel-runtime` with a CPM URI that includes both the compatibility release (`1.1.2`) and reviewed full commit SHA `a819042cfa3fab8ede82052518f2b7f5175af5ad`. Keep the release tag-to-commit relationship in `docs/evidence.md`. `cpp-library` resolves the dependency from CPM's registry, so do not add a separate `cpp_library_map_dependency` for this CPM package.

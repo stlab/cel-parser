@@ -1,8 +1,7 @@
-# Validate retained contracts and execution costs {#parser_validation}
+# Validate retained contracts {#parser_validation}
 
-This guide serves library maintainers. It separates public cross-language
-exact-source subset checks, diagnostic differences, source consumption, and
-local measurements.
+This guide serves library maintainers. It covers public cross-language
+exact-source subset checks, diagnostic differences, and package artifact checks.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -21,8 +20,7 @@ Use an ordinary C++20 build without fast-math:
 ```sh
 cmake --preset test \
   -DCEL_PARSER_ENABLE_PARITY=ON \
-  -DCEL_PARSER_REFERENCE_SOURCE="$REFERENCE_SOURCE" \
-  -DCEL_PARSER_BUILD_MEASUREMENTS=ON
+  -DCEL_PARSER_REFERENCE_SOURCE="$REFERENCE_SOURCE"
 cmake --build --preset test
 ctest --preset test
 ```
@@ -116,12 +114,7 @@ exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
-## Verify source consumption
-
-The `source_consumer` test adds the parser as a subproject, confirms that the
-parser and runtime targets are source-built with installation disabled, then
-builds and runs a client. It doesn't test package installation or downstream
-package discovery.
+## Package artifact checks
 
 The `cpp-library`-generated package check verifies that the parser component
 is present in the install tree. It doesn't validate consumer discovery or
@@ -130,33 +123,6 @@ because CPM excludes the runtime from recursive installation by default. We
 don't maintain an installed-consumer test. Address installation failures if a
 client reports one.
 
-## Measure optimized warmed execution
-
-Configure Release with the Rust reference checkout and
-`CEL_PARSER_BUILD_MEASUREMENTS=ON`, then run:
-
-```sh
-build/release/measurement 100000
-```
-
-The CSV reports workload, iterations, total nanoseconds, and observable result
-sum. Each workload has 100 warmups, then a monotonic-clock timing pass.
-The tool does not replace allocation functions or count allocations.
-The stack reserves 4096 bytes aligned to 64 and 256 live slots over a bool prefix.
-Compilation, preparation, factory creation, and reservation occur before timing.
-No timing threshold appears in unit tests.
-
-| Workload | Boundary |
-| --- | --- |
-| `prepared-scalar` | `2.0+3.0*4.0+9.0`; intrinsic arithmetic, typed double result |
-| `prepared-closure-aggregate-retirement` | `(\|\|2.0+3.0*4.0+9.0)()`; owning closure invocation and result packing |
-| `prepared-owning-nested-array` | `[[1.0,2.0],[3.0,4.0]]`; native nested-vector result conversion and retirement |
-| `erased-owning-nested-array` | Same source; public erased owning result, no child inspection |
-| `dynamic-callable` | `\|x:f64\|x*2.0+1.0`; shared callable, boxed argument 2.0, public dynamic invocation |
-
-Keep platform/build-specific timings in the handoff/report, not portable speed
-claims. The standalone measurement client runs without analyzer exclusions.
-
 ## Provision CI inputs explicitly
 
 The cpp-library-derived hosted jobs fetch their dependencies through CPM.
@@ -164,7 +130,7 @@ Runners need Git read access to the runtime repository, including any
 authentication required for a private repository.
 The separate manual workflow requires a Rust reference source path, including
 `Cargo.lock`, on an already provisioned Unix self-hosted runner.
-It runs Debug/Release, negative-compilation tests, parity, measurements,
+It runs Debug/Release, negative-compilation tests, parity,
 matching sanitizer tests, lint, driver Cargo checks, and strict docs.
 It serializes manual dispatches without cancelling an active run and limits
 each job to 60 minutes. It does not provision a runner, Git credentials, or the

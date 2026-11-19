@@ -433,10 +433,10 @@ TEST_CASE("record registration accepts spellable field identifiers") {
     const auto number = cel::value_type::leaf<double>();
     lookup.register_record("Valid", std::array{cel::record_field{"if", number},
                                                cel::record_field{"r#true", number},
-                                               cel::record_field{"α", number}});
+                                               cel::record_field{"\xce\xb1", number}});
     cel::parser parser(std::move(lookup));
     cel::raw_stack stack;
-    CHECK(parser.parse_str("Valid {if: 1.0, r#true: 2.0, α: 3.0}.r#true")
+    CHECK(parser.parse_str("Valid {if: 1.0, r#true: 2.0, \xce\xb1: 3.0}.r#true")
               .execute(stack, {})
               .as<double>() == 2.0);
 }

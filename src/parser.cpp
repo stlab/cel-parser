@@ -5,12 +5,19 @@
 
 #include <algorithm>
 #include <cassert>
-#include <charconv>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <optional>
 #include <utility>
+
+#if defined(__APPLE__)
+#include <cfenv>
+#include <cstdlib>
+#include <xlocale.h>
+#else
+#include <charconv>
+#endif
 
 namespace cel::parser_detail {
 namespace {
@@ -118,6 +125,7 @@ std::string hexadecimal(std::string_view digits, unsigned bits) {
     return result;
 }
 
+#if !defined(__APPLE__)
 /// Classifies a decimal range failure as overflow or underflow without converting it.
 /// Preconditions: text is a valid, nonnegative, underscore-free decimal number.
 /// Complexity: O(text.size()) time and O(1) extra space.
@@ -155,8 +163,9 @@ bool decimal_overflow(std::string_view text) noexcept {
     const auto negative_order = first - integer_end;
     return !negative && exponent > negative_order;
 }
+#endif
 
-/// Converts validated unsigned decimal or radix spelling with locale-independent from_chars.
+/// Converts validated unsigned decimal or radix spelling independently of the caller's locale.
 /// Range failures produce Rust's positive infinity or zero; representable values use
 /// the standard converter's binary64 rounding.
 /// Complexity: O(spelling.size()) time and space.
@@ -169,6 +178,21 @@ double convert(std::string_view spelling, unsigned base) {
         std::copy_if(spelling.begin(), spelling.end(), std::back_inserter(normalized),
                      [](char ch) { return ch != '_'; });
     }
+#if defined(__APPLE__)
+    if (base != 10) normalized.insert(0, "0x");
+    // Keep this save/restore region free of throwing C++ operations.
+    std::fenv_t environment;
+    if (std::feholdexcept(&environment) != 0)
+        throw std::runtime_error("cannot save floating-point environment");
+    const auto rounding_status = std::fesetround(FE_TONEAREST);
+    char* end = nullptr;
+    const auto value = strtod_l(normalized.c_str(), &end, LC_C_LOCALE);
+    const auto restore_status = std::fesetenv(&environment);
+    if (rounding_status != 0 || restore_status != 0)
+        throw std::runtime_error("cannot set or restore floating-point environment");
+    if (end != normalized.c_str() + normalized.size())
+        throw std::logic_error("validated CEL number rejected by strtod_l");
+#else
     double value = 0;
     const auto result =
         std::from_chars(normalized.data(), normalized.data() + normalized.size(), value,
@@ -179,6 +203,7 @@ double convert(std::string_view spelling, unsigned base) {
                    0.0;
     if (result.ec != std::errc{} || result.ptr != normalized.data() + normalized.size())
         throw std::logic_error("validated CEL number rejected by from_chars");
+#endif
     return value;
 }
 

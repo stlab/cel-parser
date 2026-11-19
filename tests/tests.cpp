@@ -11,6 +11,13 @@
 #include <utility>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <cfenv>
+#include <memory>
+#include <type_traits>
+#include <xlocale.h>
+#endif
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -118,6 +125,56 @@ TEST_CASE("binary64 boundary conversion preserves Rust infinity and zero results
     CHECK(std::get<cel::parser_detail::numeric_literal>(extremes[1].value).value == 0);
 }
 
+#if defined(__APPLE__)
+TEST_CASE("numeric conversion preserves the calling thread's floating-point environment") {
+    std::fenv_t saved;
+    REQUIRE(std::feholdexcept(&saved) == 0);
+    std::unique_ptr<std::fenv_t, decltype(&std::fesetenv)> restore(&saved, std::fesetenv);
+
+    for (const auto rounding : {FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO}) {
+        INFO(rounding);
+        REQUIRE(std::fesetround(rounding) == 0);
+        REQUIRE(std::feclearexcept(FE_ALL_EXCEPT) == 0);
+        REQUIRE(std::feraiseexcept(FE_DIVBYZERO) == 0);
+        const auto flags = std::fetestexcept(FE_ALL_EXCEPT);
+
+        const auto tokens =
+            collect("1.0000000000000001 0.99999999999999999 0x20000000000001 1e9999 1e-9999");
+        CHECK(std::fegetround() == rounding);
+        CHECK(std::fetestexcept(FE_ALL_EXCEPT) == flags);
+        REQUIRE(tokens.size() == 6);
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[0].value).value == 1.0);
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[1].value).value == 1.0);
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[2].value).value ==
+              9007199254740992.0);
+        CHECK(std::isinf(std::get<cel::parser_detail::numeric_literal>(tokens[3].value).value));
+        CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[4].value).value == 0.0);
+    }
+}
+
+TEST_CASE("numeric conversion ignores the calling thread's numeric locale") {
+    using locale_type = std::remove_pointer_t<locale_t>;
+    std::unique_ptr<locale_type, decltype(&freelocale)> locale(
+        newlocale(LC_NUMERIC_MASK, "de_DE.UTF-8", nullptr), freelocale);
+    REQUIRE(locale != nullptr);
+    const auto previous = uselocale(locale.get());
+    REQUIRE(previous != nullptr);
+    const auto restore = [previous](locale_t current) {
+        uselocale(previous);
+        freelocale(current);
+    };
+    std::unique_ptr<locale_type, decltype(restore)> active(locale.release(), restore);
+
+    const auto tokens = collect("1.25 1_5e-1 0o17 0x20000000000001");
+    REQUIRE(tokens.size() == 5);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[0].value).value == 1.25);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[1].value).value == 1.5);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[2].value).value == 15);
+    CHECK(std::get<cel::parser_detail::numeric_literal>(tokens[3].value).value ==
+          9007199254740992.0);
+}
+#endif
+
 TEST_CASE("radix integers round ties without narrowing and retain exact spelling") {
     constexpr std::array<std::pair<std::string_view, double>, 10> cases{{
         {"0b100000000000000000000000000000000000000000000000000001", 9007199254740992.0},
@@ -179,20 +236,23 @@ TEST_CASE("comment markers at EOF remain bounded") {
 }
 
 TEST_CASE("Unicode identifiers and producer whitespace retain byte boundaries") {
-    auto t = collect("α\u0301 \u00a0\u200e\u200f日本 \U0003d000");
+    auto t = collect("\xce\xb1\xcc\x81 "
+                     "\xc2\xa0\xe2\x80\x8e\xe2\x80\x8f\xe6\x97\xa5\xe6\x9c\xac "
+                     "\xf0\xbd\x80\x80");
     REQUIRE(t.size() == 4);
-    CHECK(std::get<cel::parser_detail::identifier>(t[0].value).spelling == "α\u0301");
+    CHECK(std::get<cel::parser_detail::identifier>(t[0].value).spelling == "\xce\xb1\xcc\x81");
     CHECK(t[0].span.begin == 0);
     CHECK(t[0].span.end == 4);
-    CHECK(std::get<cel::parser_detail::identifier>(t[1].value).spelling == "日本");
+    CHECK(std::get<cel::parser_detail::identifier>(t[1].value).spelling ==
+          "\xe6\x97\xa5\xe6\x9c\xac");
     CHECK(t[1].span.begin == 13);
     CHECK(t[1].span.end == 19);
-    CHECK(std::get<cel::parser_detail::identifier>(t[2].value).spelling == "\U0003d000");
+    CHECK(std::get<cel::parser_detail::identifier>(t[2].value).spelling == "\xf0\xbd\x80\x80");
 }
 
 TEST_CASE("diagnostics identify unsupported versus malformed input") {
-    for (auto text : {"1f32", "1u8", "1.0i32", "1名字", "\"text\"", "'x'", "b\"x\"", "r#\"x\"#",
-                      "br##\"x\"##", "c\"x\""}) {
+    for (auto text : {"1f32", "1u8", "1.0i32", "1\xe5\x90\x8d\xe5\xad\x97", "\"text\"", "'x'",
+                      "b\"x\"", "r#\"x\"#", "br##\"x\"##", "c\"x\""}) {
         INFO(text);
         auto t = collect(text);
         REQUIRE(t.size() == 2);
@@ -209,8 +269,8 @@ TEST_CASE("diagnostics identify unsupported versus malformed input") {
     auto const& error = std::get<cel::parse_error>(incomplete[0].value);
     CHECK(error.category() == cel::error_category::unsupported_literal);
     CHECK(error.span().end == 2);
-    for (auto text :
-         {"0x", "0b2", "\"unfinished", "/*unfinished", "///bare\rCR", "\u0301", "😀", "r#self"}) {
+    for (auto text : {"0x", "0b2", "\"unfinished", "/*unfinished", "///bare\rCR", "\xcc\x81",
+                      "\xf0\x9f\x98\x80", "r#self"}) {
         INFO(text);
         auto t = collect(text);
         REQUIRE(std::holds_alternative<cel::parse_error>(t[t.size() - 2].value));
@@ -329,7 +389,7 @@ TEST_CASE("inline punctuation validates caller input and owns its bytes") {
     cel::parser_detail::punctuation punct(source);
     source.assign(3, 'x');
     CHECK(punct.spelling() == "..=");
-    for (auto invalid : {"", "....", "abc", "α"}) {
+    for (auto invalid : {"", "....", "abc", "\xce\xb1"}) {
         CHECK_THROWS_AS(cel::parser_detail::punctuation{invalid}, std::invalid_argument);
     }
 }

@@ -10,8 +10,9 @@ prefix is needed.
 
 ## Before you begin
 
-Use CMake 3.24 or later, Ninja, Git, and a C++20 compiler with floating-point
-`std::from_chars` and IEEE binary64 `double`. Do not enable fast-math.
+Use CMake 3.24 or later, Ninja, Git, and a C++20 compiler with IEEE binary64
+`double`. Numeric conversion uses C-locale `strtod_l` on Apple platforms and
+floating-point `std::from_chars` elsewhere. Do not enable fast-math.
 The first configuration downloads pinned build infrastructure and
 `cel-runtime`. You need Git read access to both repositories; no separate
 runtime checkout is required.
