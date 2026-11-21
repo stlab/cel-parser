@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 include(cmake/CPM.cmake)
 
-CPMAddPackage("gh:stlab/cpp-library@6.1.0")
+CPMAddPackage("gh:stlab/cpp-library@6.2.0")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
@@ -20,7 +20,7 @@ cpp_library_setup(
     HEADERS parser.hpp parser/diagnostic.hpp parser/lookup.hpp parser/compiler.hpp parser/all.hpp
     SOURCES parser.cpp lookup.cpp type.cpp compiler.cpp
     EXAMPLES example.cpp cached_decoded.cpp
-    TESTS tests.cpp lookup_test.cpp type_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
+    TESTS lookup_test.cpp expression_test.cpp cached_test.cpp parity_driver_test.cpp header_layers_test.cpp
         cursor_copy_fail.cpp lexer_copy_fail.cpp parser_copy_fail.cpp standard_library_fail.cpp
         converting_registration_fail.cpp converting_result_fail.cpp nontrivial_registration_fail.cpp token_interface_fail.cpp
     LICENSE_FILES licenses/Unicode-3.0.txt
@@ -30,23 +30,24 @@ cpp_library_setup(
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
 )
 
+# cpp-library adds src to tests directly and through the static implementation.
+get_property(parser_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(parser_target IN LISTS parser_targets)
+    get_target_property(parser_includes "${parser_target}" INCLUDE_DIRECTORIES)
+    if(parser_includes)
+        list(REMOVE_ITEM parser_includes "${CMAKE_CURRENT_SOURCE_DIR}/src")
+        set_property(TARGET "${parser_target}" PROPERTY INCLUDE_DIRECTORIES "${parser_includes}")
+    endif()
+endforeach()
+
 # Initialize cpp-library's default CEL_INSTALL before the same-namespace runtime.
-CPMAddPackage("gh:stlab/cel-runtime@1.1.2#a819042cfa3fab8ede82052518f2b7f5175af5ad")
+CPMAddPackage("gh:stlab/cel-runtime@1.1.3#fc9fa3be8b0af9782a3491acacd6ba1f2e528a5b")
 target_link_libraries(parser PUBLIC cel::runtime)
 
 # Exercise parity-driver helpers in ordinary unit tests without the driver's main().
 if(TARGET parity_driver_test)
     target_sources(parity_driver_test PRIVATE tools/parity/driver.cpp)
     target_compile_definitions(parity_driver_test PRIVATE CEL_PARITY_NO_MAIN)
-endif()
-
-if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
-    # Give white-box tests access to implementation headers without exporting them.
-    foreach(test tests lookup_test type_test expression_test parity_driver_test cursor_copy_fail lexer_copy_fail)
-        target_include_directories(${test} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    endforeach()
-
-    set_tests_properties(tests PROPERTIES TIMEOUT 180)
 endif()
 
 # Compare C++ and Rust results on shared fixtures; Python and Cargo are test-only.
@@ -72,7 +73,6 @@ if(CEL_PARSER_ENABLE_PARITY)
             --source "${CEL_PARSER_REFERENCE_SOURCE}" --build "${reference_build}"
         VERBATIM)
     add_executable(parity_driver tools/parity/driver.cpp)
-    target_include_directories(parity_driver PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(parity_driver PRIVATE cel::parser)
     cpp_library_copy_runtime_dlls(parity_driver)
 

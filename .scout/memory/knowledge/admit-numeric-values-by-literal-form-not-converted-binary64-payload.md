@@ -7,13 +7,11 @@ last_accessed: 2026-11-18T06:48:35Z
 last_reinforced: 2026-11-18T06:48:35Z
 access_count: 2
 sources:
-  - "include/cel/parser.hpp:62-80"
-  - "src/compiler.cpp:405-418"
-  - "src/parser.cpp:373-429"
   - "src/compiler.cpp:415-419"
-  - "src/parser.cpp:379-422"
+  - "src/parser.cpp:793-825"
   - "src/lexer.hpp:15-25"
-  - "tests/expression_test.cpp:157-194"
+  - "src/compiler.cpp:762-782"
+  - "tests/expression_test.cpp:125-136"
 tags: ["parser", "literals", "rust-parity", "tuple-selectors"]
 tier: knowledge
 votes_up: 1

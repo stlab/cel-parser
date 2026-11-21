@@ -7,8 +7,8 @@ last_accessed: 2026-11-19T05:47:01Z
 last_reinforced: 2026-11-19T05:47:01Z
 access_count: 1
 sources:
-  - "src/parser.cpp:180-194"
-  - "tests/tests.cpp:129-153"
+  - "src/parser.cpp:578-592"
+  - "src/parser.cpp:1120-1144"
   - "src/lexer.hpp:21-23"
   - "docs/lexical-contract.md:105-109"
 tags: ["parser", "floating-point", "macos", "locale", "compatibility"]

@@ -1,7 +1,7 @@
 # Validate retained contracts {#parser_validation}
 
 This guide serves library maintainers. It covers public cross-language
-exact-source subset checks, diagnostic differences, and package artifact checks.
+exact-source subset checks, diagnostic differences, and local source-build tests.
 The production parser needs neither Rust, Cargo, Python, nor a JSON library.
 
 ## Configure the differential gate
@@ -114,14 +114,28 @@ exceptions. No standard-function or bracket-indexing error adaptation remains.
 Unexpected errors still fail the driver. Exception wording is not compared
 between languages.
 
-## Package artifact checks
+## Run local source-build tests
 
-The `cpp-library`-generated package check verifies that the parser component
-is present in the install tree. It doesn't validate consumer discovery or
-runtime availability; `find_dependency(cel-runtime)` is expected to fail
-because CPM excludes the runtime from recursive installation by default. We
-don't maintain an installed-consumer test. Address installation failures if a
-client reports one.
+For unit and negative-compilation tests without the optional Rust reference,
+configure, build, and run:
+
+```sh
+cmake --preset test -DCEL_PARSER_ENABLE_PARITY=OFF
+cmake --build --preset test
+ctest --preset test
+```
+
+Private behavioral tests live in their owning implementation files behind
+`CPP_LIBRARY_TESTING()`. The generated `parser_in_source_tests` executable runs
+them once. Separate public-contract tests link cpp-library's static test
+implementation; production compilation excludes doctest and test fixtures.
+The cursor and lexer copy-rejection fixtures remain separate compilation-failure
+tests with explicit relative private-header includes. No test target receives
+the `src` include root.
+
+Generated tests and example tests have finite 120-second timeouts. The optional
+differential test retains its 180-second timeout. Hosted CI uses source builds;
+installation, installed consumers, and package artifacts are outside validation.
 
 ## Provision CI inputs explicitly
 

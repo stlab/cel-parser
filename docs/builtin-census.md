@@ -32,7 +32,7 @@ Scope callbacks and descriptor emitters execute during compilation.
 
 Each row names exact arguments/results. `D` means `f64`; `B` means `bool`.
 Every row is implemented with public checked runtime emission. The test anchors
-name cases in `tests/lookup_test.cpp`.
+name in-source cases in `src/lookup.cpp`.
 Source syntax/precedence is also covered by `retained precedence` in
 `tests/expression_test.cpp`; `core lookup does not` checks absent library names.
 See the [expression grammar](expression-grammar.md) for every emission edge.

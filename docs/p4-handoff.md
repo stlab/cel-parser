@@ -21,7 +21,7 @@ below add comparisons without claiming exhaustive enumeration of infinite types.
 
 | Criterion | Status | Strongest exact evidence | Confidence / gap |
 | --- | --- | --- | --- |
-| All 34 eager retained signatures | Differential plus public contracts | `scalar`, `numeric-functions`, `ranges`; census rows link `lookup_test.cpp` operator/range/cast/standard cases | High; no removed scalar surrogate |
+| All 34 eager retained signatures | Differential plus public contracts | `scalar`, `numeric-functions`, `ranges`; census rows link `src/lookup.cpp` operator/range/cast/standard cases | High; no removed scalar surrogate |
 | Eleven numeric names; ordinary/member selectors; IEEE edges | Differential plus public contracts | `numeric-functions`, `numeric-errors`; `standard numeric names require explicit installation and use source call selectors` | High; NaN payload/equal-zero choices only |
 | Unit/group/singleton/multi tuples; exact selectors | Differential | `structural`, `raw-selector-errors`; `tuple selectors use retained raw digits rather than double conversion` | High; selector conversion defect corrected in Rust |
 | Recursive homogeneous arrays and complete annotations | Differential plus general runtime contracts | `structural`, `recursive-types-and-headers`, `exact-diagnostics`; tuple/array/type tests | High; explicit safe Rust witness set |
@@ -34,7 +34,7 @@ below add comparisons without claiming exhaustive enumeration of infinite types.
 | Compiler lifetime, cached repeats, prefix/exception cleanup | Differential plus independent prefix tests | Both drivers repeat after destruction; `cached_test.cpp`; runtime rollback/reentry tests | High; Rust safe API lacks identical caller-prefix access |
 | Casts, strict separators, reserved alternatives, exact projection/annotation spans | Differential | `malformed-syntax`, `exact-diagnostics`, `raw-selector-errors`, `type-lookup-errors` | High; explicit group/EOF adaptations only |
 | C++ category enum; selected runtime failure kinds | Differential boundary plus C++ own contract | Harness `compare`; per-row categories; typed callback adapter and source-defined clamp error | High; no matching Rust enum exists |
-| Text/Unicode/doc/numeric spelling and resource bounds | Independent public C++ adaptation tests | `tests.cpp`, recursive-expression resource case, compile-fail cursor/parser fixtures | High locally; no false proc-macro text-lexer equivalence |
+| Text/Unicode/doc/numeric spelling and resource bounds | Independent C++ adaptation tests | `src/parser.cpp`, recursive-expression resource case, compile-fail cursor/parser fixtures | High locally; no false proc-macro text-lexer equivalence |
 | Bracket indexing and finite integral bounds | Explicit C++ adaptation | `cpp-adaptations`; `explicit C++ array indexing validates before structural access`; runtime index/prefix cases | High; Rust has no bracket-postfix syntax |
 | Removed integers/f32/strings, bitwise/casts/helpers, wrong nominal types | Excluded with public rejection tests | Census removed rows; lexer/type/lookup/expression tests; `type-lookup-errors` | High; no invented conversions/names |
 | Ownership binding, resource overflow, callable exclusion/reentry | Equivalent public runtime contract paths | Runtime parity ledger and callable/composite/resource tests; typed empty Fn fixtures | High; not relabeled as differential raw-storage tests |
@@ -52,11 +52,9 @@ The final integrated wave corrects executable retirement and higher-order result
 ownership. Use the corrected runtime revision in [source evidence](evidence.md)
 and the build and test commands in the [README](../README.md). Current
 validation uses source-built parser and runtime targets; it does not verify
-installed parser clients. The generated `cpp-library` package check verifies
-the parser component only; runtime discovery is expected to fail when the
-runtime isn't installed.
-The shipped runtime tests `executable_retirement_test.cpp` and
-`callable_test.cpp` cover these ownership regressions.
+installed parser clients or package artifacts.
+The runtime's in-source retirement and callable tests cover these ownership
+regressions.
 Ordinary named scalar calls allocate owning marker/result intermediates.
 Native owning composites and dynamic invocation retain their costs.
 

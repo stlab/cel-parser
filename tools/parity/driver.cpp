@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSL-1.0
+#include "../../src/lookup_access.hpp"
 #include "driver_support.hpp"
-#include "lookup_access.hpp"
 #include <bit>
 #include <cel/parser/compiler.hpp>
 #include <cmath>
