@@ -77,7 +77,11 @@ implicit ambient captures, or general block expressions.
 
 ## Verification disposition
 
-The following cases in `tests/expression_test.cpp` cover the implementation:
+The following cases cover the implementation. Public-interface tests remain in
+`tests/expression_test.cpp`. Cases using private token or scope interfaces live
+behind `CPP_LIBRARY_TESTING()` in `src/compiler.cpp`: `numeric values require`,
+`decimal integer-form f64`, `postfix brackets remain`, `all six range forms`,
+`independent closure scope`, and `text and token methods`.
 
 | Case-name prefix | Production and boundary coverage |
 | --- | --- |
@@ -99,7 +103,8 @@ The following cases in `tests/expression_test.cpp` cover the implementation:
 | `text and token methods` | Both full methods, inline host preservation, producer diagnostics, visible/invisible malformed groups, exact spans |
 | `recursive input` | Bounded nesting, long arithmetic/unary/cast/member/lazy/list chains |
 
-`tests/type_test.cpp` additionally verifies exact span-output prefix parsing.
+In-source tests in `src/type.cpp` additionally verify exact span-output prefix
+parsing. Lexer and token-cursor tests live in `src/parser.cpp`.
 
 The differential fixtures cover retained production families with identical
 sources. Narrower scalar/parameter availability, canonical record carriers,

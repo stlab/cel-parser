@@ -3,6 +3,7 @@
 #include <cel/parser/compiler.hpp>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <ostream>
 using namespace cel::parity;
 
 TEST_CASE("unrelated execution exceptions fail instead of matching selected error fixtures") {

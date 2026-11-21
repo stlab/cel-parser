@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSL-1.0
-#include "compiler.hpp"
+#include "lexer.hpp"
 #include "lookup_access.hpp"
 #include "type.hpp"
 #include <algorithm>
 #include <cassert>
+#include <cel/parser/compiler.hpp>
 #include <charconv>
+#include <cpp-library/testing.hpp>
 #include <iterator>
 #include <limits>
 #include <unordered_map>
@@ -662,6 +664,26 @@ compiled_segment parser::parse_str(std::string_view source) {
     lex_lexer cursor(source);
     return expression_compiler(cursor, lookup_).compile(true);
 }
+} // namespace cel
+
+#if CPP_LIBRARY_TESTING()
+#include <cmath>
+#include <doctest/doctest.h>
+#include <ostream>
+
+namespace cel::parser_detail {
+/// Compiles internal producer streams under the parser's ownership and exclusivity contracts.
+struct parser_access {
+    /// Compiles a complete borrowed stream; terminal producer tokens end traversal.
+    /// Complexity: O(tokens + emitted code + lookup and type metadata).
+    static compiled_segment parse_tokens(parser& compiler, std::span<const token> tokens);
+    /// Compiles a prefix, leaving the following host token unconsumed.
+    /// Complexity: O(consumed tokens + emitted code + lookup and type metadata).
+    static compiled_segment parse_expression(parser& compiler, token_cursor& cursor);
+};
+} // namespace cel::parser_detail
+
+namespace cel {
 /// Compiles a complete external stream without copying its token payloads.
 /// Complexity: O(tokens + emitted operations + lookup/type/structural metadata work).
 compiled_segment parser_detail::parser_access::parse_tokens(parser& compiler,
@@ -678,3 +700,242 @@ compiled_segment parser_detail::parser_access::parse_expression(parser& compiler
     return expression_compiler(cursor, compiler.lookup_).compile(false);
 }
 } // namespace cel
+
+#include <cel/runtime.hpp>
+#include <string>
+
+namespace {
+/// Collects an external producer stream for the private borrowed-token boundary.
+/// Complexity: O(source bytes + tokens) time and storage.
+std::vector<cel::parser_detail::token> tokens(std::string_view source) {
+    cel::parser_detail::lex_lexer lexer(source);
+    std::vector<cel::parser_detail::token> result;
+    do {
+        result.push_back(lexer.current());
+        if (std::holds_alternative<cel::parser_detail::end_token>(lexer.current().value)) break;
+        lexer.advance();
+    } while (true);
+    return result;
+}
+/// Compiles and executes text with a fresh caller stack.
+/// Complexity: O(compilation + execution).
+cel::value evaluate(cel::parser& parser, std::string_view text) {
+    cel::raw_stack stack;
+    return parser.parse_str(text).execute(stack, {});
+}
+/// Checks an exact source diagnostic through the public compiler.
+/// Complexity: O(compilation).
+void error_at(cel::parser& parser,
+              std::string_view text,
+              cel::error_category category,
+              cel::source_span span) {
+    try {
+        (void)parser.parse_str(text);
+        FAIL("invalid expression accepted");
+    } catch (const cel::parse_error& error) {
+        CHECK(error.category() == category);
+        CHECK(error.span() == span);
+    }
+}
+} // namespace
+
+TEST_CASE("numeric values require floating literal forms without integer coercion") {
+    cel::parser parser{cel::op_lookup{}};
+    for (const auto& [text, span] : std::array{
+             std::pair{"1", cel::source_span{0, 1}}, std::pair{"1 as f64", cel::source_span{0, 1}},
+             std::pair{"1+2.0", cel::source_span{0, 1}}, std::pair{"1.0+1", cel::source_span{4, 5}},
+             std::pair{"(|x:f64|x)(1)", cel::source_span{11, 12}},
+             std::pair{"0x10", cel::source_span{0, 4}}, std::pair{"0b10", cel::source_span{0, 4}},
+             std::pair{"0o10", cel::source_span{0, 4}}, std::pair{"0b1f64", cel::source_span{0, 6}},
+             std::pair{"0o7_f64", cel::source_span{0, 7}},
+             std::pair{"0x1f64", cel::source_span{0, 6}}}) {
+        CAPTURE(text);
+        error_at(parser, text, cel::error_category::unsupported_literal, span);
+        CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text)),
+                        cel::parse_error);
+    }
+    CHECK(evaluate(parser, "1.0+2.0").as<double>() == 3.0);
+    CHECK(evaluate(parser, "(|x:f64|x)(1.0)").as<double>() == 1.0);
+    CHECK(evaluate(parser, "(1.0,2.0).0x1").as<double>() == 2.0);
+}
+
+TEST_CASE("decimal integer-form f64 literals produce floating values") {
+    cel::parser parser{cel::op_lookup{}};
+    for (const auto& [text, expected] : std::array{
+             std::pair{"1f64", 1.0}, std::pair{"0f64", 0.0}, std::pair{"1_f64", 1.0},
+             std::pair{"1__f64", 1.0}, std::pair{"1_000f64", 1000.0},
+             std::pair{"9007199254740993f64", 9007199254740992.0}, std::pair{"1e2f64", 100.0},
+             std::pair{"1f64 + 2.0", 3.0}, std::pair{"-1f64", -1.0}, std::pair{"1f64 as f64", 1.0},
+             std::pair{"(|x:f64|x)(1f64)", 1.0}}) {
+        CAPTURE(std::string_view(text));
+        CHECK(evaluate(parser, text).as<double>() == expected);
+        cel::raw_stack stack;
+        CHECK(cel::parser_detail::parser_access::parse_tokens(parser, tokens(text))
+                  .execute(stack, {})
+                  .as<double>() == expected);
+    }
+    CHECK(std::signbit(evaluate(parser, "-0f64").as<double>()));
+    for (auto text : {"1f64x", "1f64_", "1f640", "1f32", "1.0f64x", "(1.0,2.0).1f64"}) {
+        CAPTURE(text);
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
+}
+
+TEST_CASE("postfix brackets remain host input and are not core array indexing") {
+    cel::parser parser{cel::op_lookup{}};
+    const auto input = tokens("[1.0][0.0]");
+    CHECK_THROWS_AS(parser.parse_str("[1.0][0.0]"), cel::parse_error);
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, input),
+                    cel::parse_error);
+    cel::parser_detail::token_cursor cursor(input);
+    const auto program = cel::parser_detail::parser_access::parse_expression(parser, cursor);
+    REQUIRE(std::holds_alternative<cel::parser_detail::open_delimiter>(cursor.current().value));
+    CHECK(cursor.current().span == cel::source_span{5, 6});
+    cel::raw_stack stack;
+    CHECK(program.execute(stack, {}).at(0).as<double>() == 1.0);
+}
+
+TEST_CASE("all six range forms preserve complete type and endpoint order") {
+    cel::parser parser{cel::op_lookup{}};
+    const auto forms = std::array{std::pair{"1.0 + 2.0..4.0 * 2.0", cel::range_kind::range},
+                                  std::pair{"1.0..=3.0", cel::range_kind::range_inclusive},
+                                  std::pair{"1.0..", cel::range_kind::range_from},
+                                  std::pair{"..3.0", cel::range_kind::range_to},
+                                  std::pair{"..=3.0", cel::range_kind::range_to_inclusive},
+                                  std::pair{"..", cel::range_kind::range_full}};
+    for (const auto& [text, kind] : forms) {
+        CAPTURE(text);
+        CHECK(evaluate(parser, text).type().form() == kind);
+    }
+    auto range = evaluate(parser, "1.0 + 2.0..4.0 * 2.0");
+    CHECK(range.at(0).as<double>() == 3);
+    CHECK(range.at(1).as<double>() == 8);
+    for (auto text : {"..=", "1.0..=", "1.0..2.0..3.0", "true..false", "1.0==2.0..3.0==4.0"}) {
+        CHECK_THROWS_AS(parser.parse_str(text), cel::parse_error);
+    }
+    for (auto text : {"..else", "1.0..else", "..as", "1.0..as"}) {
+        const auto input = tokens(text);
+        cel::parser_detail::token_cursor cursor(input);
+        CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_expression(parser, cursor),
+                        cel::parse_error);
+    }
+}
+
+TEST_CASE("independent closure scope isolation restores scopes after success and failure") {
+    cel::op_lookup lookup;
+    lookup.push_library_scope(
+        [](std::string_view name, cel::dyn_segment& b, std::size_t n, cel::source_span) {
+            if (name != "library" || n != 0) return false;
+            b.just(cel::value::from(7.0));
+            return true;
+        });
+    cel::parser_detail::lookup_access::push_scope(
+        lookup, [](std::string_view name, cel::dyn_segment& b, std::size_t n, cel::source_span) {
+            if (name != "ambient" || n != 0) return false;
+            b.just(cel::value::from(3.0));
+            return true;
+        });
+    cel::parser parser(std::move(lookup));
+    CHECK(evaluate(parser, "ambient").as<double>() == 3);
+    CHECK(evaluate(parser, "(|| library)()").as<double>() == 7);
+    CHECK_THROWS_AS(parser.parse_str("|| ambient"), cel::parse_error);
+    CHECK(evaluate(parser, "ambient").as<double>() == 3);
+    CHECK_THROWS_AS(parser.parse_str("|x:f64| || x"), cel::parse_error);
+    CHECK(evaluate(parser, "ambient").as<double>() == 3);
+    CHECK(evaluate(parser, "(|ambient:f64| ambient)(9.0)").as<double>() == 9);
+    CHECK(evaluate(parser, "ambient").as<double>() == 3);
+    CHECK(evaluate(parser, "if true {ambient} else {0.0}").as<double>() == 3);
+    CHECK(evaluate(parser, "(|ambient:bool| if ambient {1.0} else {2.0})(true)").as<double>() == 1);
+}
+
+TEST_CASE(
+    "text and token methods reject trailing input inline leaves host token diagnostics are owned") {
+    cel::parser parser{cel::op_lookup{}};
+    auto input = tokens("1.0+2.0, host");
+    cel::parser_detail::token_cursor cursor(input);
+    auto program = cel::parser_detail::parser_access::parse_expression(parser, cursor);
+    CHECK(std::get<cel::parser_detail::punctuation>(cursor.current().value).spelling() == ",");
+    cel::raw_stack stack;
+    CHECK(program.execute(stack, {}).as<double>() == 3);
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, input),
+                    cel::parse_error);
+    CHECK(cel::parser_detail::parser_access::parse_tokens(parser, tokens("(1.0,2.0).1"))
+              .execute(stack, {})
+              .as<double>() == 2);
+    error_at(parser, "1.0 2.0", cel::error_category::malformed_input, {4, 7});
+    error_at(parser, "[1.0,]", cel::error_category::malformed_input, {5, 6});
+    error_at(parser, "(1.0]", cel::error_category::delimiter_error, {4, 5});
+    error_at(parser, "missing", cel::error_category::lookup_error, {0, 7});
+    error_at(parser, "[1.0,true]:[f64]   ", cel::error_category::type_error, {0, 16});
+    for (const auto& [text, expected] :
+         std::array{std::pair{"[]:(f64)   , host", cel::source_span{3, 8}},
+                    std::pair{"[true]:([f64])   , host", cel::source_span{0, 14}},
+                    std::pair{"[[]:[bool]]:([[f64]])   , host", cel::source_span{0, 21}}}) {
+        CAPTURE(std::string_view(text));
+        const auto annotated = tokens(text);
+        cel::parser_detail::token_cursor prefix(annotated);
+        try {
+            (void)cel::parser_detail::parser_access::parse_expression(parser, prefix);
+            FAIL("invalid annotation accepted");
+        } catch (const cel::parse_error& error) {
+            CHECK(error.category() == cel::error_category::type_error);
+            CHECK(error.span() == expected);
+        }
+        CHECK(std::get<cel::parser_detail::punctuation>(prefix.current().value).spelling() == ",");
+    }
+    auto invalid = std::array{cel::parser_detail::token{
+        {20, 21},
+        cel::parse_error(cel::error_category::unsupported_literal, {20, 21}, "producer")}};
+    try {
+        (void)cel::parser_detail::parser_access::parse_tokens(parser, invalid);
+        FAIL("producer diagnostic ignored");
+    } catch (const cel::parse_error& error) {
+        CHECK(error.category() == cel::error_category::unsupported_literal);
+        CHECK(error.span() == cel::source_span{20, 21});
+        CHECK(std::string(error.what()) == "producer");
+    }
+    const auto malformed = std::array{
+        cel::parser_detail::token{
+            {10, 11},
+            cel::parser_detail::open_delimiter{cel::parser_detail::delimiter::parenthesis}},
+        cel::parser_detail::token{{11, 14},
+                                  cel::parser_detail::numeric_literal{
+                                      1, "1.0", "", cel::parser_detail::numeric_form::decimal}},
+        cel::parser_detail::token{
+            {14, 15}, cel::parser_detail::close_delimiter{cel::parser_detail::delimiter::bracket}}};
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, malformed),
+                    cel::parse_error);
+    const auto invisible = std::array{
+        cel::parser_detail::token{
+            {0, 0}, cel::parser_detail::open_delimiter{cel::parser_detail::delimiter::none}},
+        cel::parser_detail::token{
+            {0, 0}, cel::parser_detail::close_delimiter{cel::parser_detail::delimiter::none}}};
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, invisible),
+                    cel::parse_error);
+    auto host_close = tokens("1.0+2.0");
+    host_close.back() = {{7, 8},
+                         cel::parser_detail::close_delimiter{cel::parser_detail::delimiter::brace}};
+    cel::parser_detail::token_cursor host(host_close);
+    CHECK(cel::parser_detail::parser_access::parse_expression(parser, host)
+              .execute(stack, {})
+              .as<double>() == 3);
+    CHECK(std::holds_alternative<cel::parser_detail::close_delimiter>(host.current().value));
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, host_close),
+                    cel::parse_error);
+    const auto terminal = std::array{
+        cel::parser_detail::token{{0, 3},
+                                  cel::parser_detail::numeric_literal{
+                                      1, "1.0", "", cel::parser_detail::numeric_form::decimal}},
+        cel::parser_detail::token{{3, 3}, cel::parser_detail::end_token{}},
+        cel::parser_detail::token{{4, 5}, cel::parser_detail::identifier{"ignored"}}};
+    CHECK(cel::parser_detail::parser_access::parse_tokens(parser, terminal)
+              .execute(stack, {})
+              .as<double>() == 1);
+    const auto external_suffix = std::array{cel::parser_detail::token{
+        {0, 4},
+        cel::parser_detail::numeric_literal{1, "1i32", "i32",
+                                            cel::parser_detail::numeric_form::integer}}};
+    CHECK_THROWS_AS(cel::parser_detail::parser_access::parse_tokens(parser, external_suffix),
+                    cel::parse_error);
+}
+#endif
