@@ -12,8 +12,8 @@ pinned to the original baseline.
 The runtime source upstream is
 [stlab/cel-runtime](https://github.com/stlab/cel-runtime).
 The previous P4 baseline used release `v1.0.1` at revision
-`a8e753b040664172fd3f526f9cf46029858ff788`. The parser pins release `v1.1.3`
-at revision `fc9fa3be8b0af9782a3491acacd6ba1f2e528a5b` because its
+`a8e753b040664172fd3f526f9cf46029858ff788`. The parser pins release `v1.1.4`
+at revision `dd93f97ea3658d7e1591062613edc88070517081` because its
 record-registration API uses the runtime's record adapters. The parser consumes
 the public target from CPM and exports the matching minimum package version; it
 neither copies runtime implementation nor includes private headers. Rebuild the
@@ -93,10 +93,10 @@ Production code depends on the C++20 standard library, committed Unicode
 property data, and the `cel-runtime` package through `cel::runtime`.
 There is no Unicode shared-library dependency.
 
-Build infrastructure uses `stlab/cpp-library` release `v6.2.0` at
-`4f60491f7550cb058af855346decc71ce0d5365e` under BSL-1.0. Its pinned scaffold
+Build infrastructure uses `stlab/cpp-library` release `v7.0.0` at
+`7ba5a0471a780502395d113c44f26254dc58cd65` under BSL-1.0. Its pinned scaffold
 provides CMake presets, doctest 2.5.3 (MIT), generated negative-compilation tests,
-CTest, guarded in-source tests, static per-file test support,
+CTest, guarded in-source tests, production-linked public-contract tests,
 standalone public-header checks, exports, license installation, source-build CI,
 and strict Doxygen configuration.
 Doxygen-awesome-css 2.5.0 (MIT) supplies the documentation theme. CPM.cmake
