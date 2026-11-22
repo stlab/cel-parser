@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 include(cmake/CPM.cmake)
 
-CPMAddPackage("gh:stlab/cpp-library@6.2.0")
+CPMAddPackage("gh:stlab/cpp-library@7.0.0")
 include(${cpp-library_SOURCE_DIR}/cpp-library.cmake)
 
 # Enable dependency tracking before project()
@@ -30,18 +30,8 @@ cpp_library_setup(
     DOCS_OPTIONS "USE_MDFILE_AS_MAINPAGE = ${CMAKE_CURRENT_SOURCE_DIR}/README.md"
 )
 
-# cpp-library adds src to tests directly and through the static implementation.
-get_property(parser_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
-foreach(parser_target IN LISTS parser_targets)
-    get_target_property(parser_includes "${parser_target}" INCLUDE_DIRECTORIES)
-    if(parser_includes)
-        list(REMOVE_ITEM parser_includes "${CMAKE_CURRENT_SOURCE_DIR}/src")
-        set_property(TARGET "${parser_target}" PROPERTY INCLUDE_DIRECTORIES "${parser_includes}")
-    endif()
-endforeach()
-
 # Initialize cpp-library's default CEL_INSTALL before the same-namespace runtime.
-CPMAddPackage("gh:stlab/cel-runtime@1.1.3#fc9fa3be8b0af9782a3491acacd6ba1f2e528a5b")
+CPMAddPackage("gh:stlab/cel-runtime@1.1.4#dd93f97ea3658d7e1591062613edc88070517081")
 target_link_libraries(parser PUBLIC cel::runtime)
 
 # Exercise parity-driver helpers in ordinary unit tests without the driver's main().
